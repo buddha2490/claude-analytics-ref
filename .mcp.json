@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "cdisc-rag": {
+      "command": "/opt/homebrew/bin/npx",
+      "args": ["-y", "mcp-local-rag"],
+      "env": {
+        "BASE_DIR": "/Users/briancarter/Rdata/cdisc-rag/chunks",
+        "DB_PATH": "/Users/briancarter/Rdata/cdisc-rag/.vectorstore/lancedb"
+      }
+    }
+  }
+}

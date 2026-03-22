@@ -1,0 +1,10 @@
+# R
+.Rhistory
+.Rdata
+.RData
+.Ruserdata
+
+# renv
+renv/library/
+renv/staging/
+renv/sandbox/

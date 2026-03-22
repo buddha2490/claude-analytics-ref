@@ -1,0 +1,25 @@
+# .Rprofile - Auto-load project packages on R startup
+
+local({
+  packages <- c(
+    "tidyverse",
+    "ggplot2",
+    "sparklyr",
+    "DBI",
+    "testthat",
+    "admiral",
+    "GT",
+    "pharmaRTF",
+    "huxtable"
+  )
+
+  # Activate renv if available
+  if (file.exists("renv/activate.R")) {
+    source("renv/activate.R")
+  }
+
+  # Load packages, suppressing startup messages
+  invisible(lapply(packages, function(pkg) {
+    suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+  }))
+})
