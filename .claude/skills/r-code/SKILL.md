@@ -1,54 +1,36 @@
 ---
 name: r-code
-description: Auto-invoked when the user requests R code. Enforces tidyverse style, roxygen2 documentation, testthat tests, validation by execution, and approved package usage for clinical programming workflows.
+description: Auto-invoked when the user requests R code. Governs the write-source-test-validate workflow, artifact structure, and code templates for R development.
 ---
 
 # R Code Generation Skill
 
-This skill governs all R code generation in this project. It is auto-invoked whenever the user requests R code — no explicit command needed.
+This skill governs the **workflow** for all R code generation. It is auto-invoked whenever the user requests R code.
 
-## Core Principles
+Style, packages, naming, CDISC conventions, and file layout are enforced by project rules (`.claude/rules/`) — they apply to every interaction, not just this skill. This skill defines *how code is produced and validated*.
 
-1. **Every function produces three artifacts:**
-   - `R/<function_name>.R` — the function file with roxygen2 tags
-   - `tests/test-<function_name>.R` — a self-contained testthat test file
-   - The function and tests must be **validated by execution** before delivery
+## Core Principle
 
-2. **All generated code must run without errors.** After writing code, execute it in R to confirm it works. If it fails, revise and re-run until it succeeds. This applies to:
-   - Standalone scripts and analysis code
-   - Function files (source them)
-   - Test files (run them and confirm tests pass)
-   - Any code chunk — if you wrote it, you run it
+**All generated code must run without errors.** If you wrote it, you run it. No exceptions.
 
-## Style Guide
+## Function Workflow (3 artifacts)
 
-Follow the [tidyverse style guide](https://style.tidyverse.org/) with these project-specific rules:
+Every function produces three artifacts:
 
-### Naming
-- Use `snake_case` for functions, variables, and file names
-- Function files: `R/<function_name>.R`
-- Test files: `tests/test-<function_name>.R`
+1. `R/<function_name>.R` — the function file with roxygen2 documentation
+2. `tests/test-<function_name>.R` — a self-contained testthat test file
+3. **Validated execution** — both files sourced/run successfully
 
-### Package Loading
-- **Default:** Use `library(package)` then call functions directly (e.g., `filter()`, not `dplyr::filter()`)
-- **Exception:** Use `package::function()` only when there is a genuine namespace conflict (e.g., `dplyr::filter()` vs `stats::filter()`)
-- Never use `require()` — always use `library()`
+### Validation Sequence
 
-### Comments
-- Every logical section of code must have a comment explaining what it does
-- Use section headers for major blocks:
-```r
-# --- Section Name -----------------------------------------------------------
-```
-- Comments should explain *why*, not just *what*
+1. **Write** the function file to `R/`
+2. **Source** it in R to confirm it loads without errors
+3. **Write** the test file to `tests/`
+4. **Run** the tests: `Rscript -e 'testthat::test_file("tests/test-<name>.R")'`
+5. **If any step fails:** read the error, fix the code, re-run from the failed step
+6. **Report** results — confirm what passed, flag anything that needed revision
 
-### Pipes
-- Prefer the tidyverse pipe `%>%` unless the user specifies the base pipe `|>`
-- One operation per line in pipe chains
-
-## Function Files (`R/*.R`)
-
-Each function gets its own file. Structure:
+## Function File Template (`R/*.R`)
 
 ```r
 #' Title of the Function
@@ -80,14 +62,12 @@ my_function <- function(param_name, another_param) {
 
 Rules:
 - One primary function per file
-- Helper functions used only by that function may live in the same file, defined below the primary function, without `@export`
+- Helper functions may live in the same file below the primary function, without `@export`
 - All parameters documented with `@param`
 - Return value documented with `@return`
 - At least one `@examples` block
 
-## Test Files (`tests/test-*.R`)
-
-Each test file is self-contained. Structure:
+## Test File Template (`tests/test-*.R`)
 
 ```r
 library(testthat)
@@ -108,7 +88,6 @@ test_data <- tibble(
 test_that("<function_name> handles normal input", {
   result <- my_function(test_data)
   expect_equal(nrow(result), expected_n)
-  # additional expectations
 })
 
 test_that("<function_name> handles edge case: empty input", {
@@ -128,51 +107,24 @@ Rules:
 - Every test file starts by loading `testthat` and sourcing the function
 - Test data is simulated inline — no external fixture files
 - Always use `set.seed()` before any randomized data generation
-- Test at minimum: normal/expected input, empty input, missing values (NA), and any domain-specific edge cases
+- Test at minimum: normal input, empty input, missing values (NA), and domain-specific edge cases
 - End every test file with `rm(list = ls())` to clean the environment
 
-## Approved Packages
+## Analysis Script Workflow
 
-Only use packages from this approved list. If a task requires a package not listed here, ask the user before using it.
+When the user asks for analysis code (not a reusable function), write it as a standalone `.R` script in `programs/` or a location the user specifies.
 
-**Core:**
-- tidyverse (dplyr, tidyr, readr, stringr, purrr, forcats, lubridate, tibble)
-- ggplot2
-- plotly
-- gt
-- huxtable
-- pharmaRTF
-
-**Data/Infrastructure:**
-- DBI
-- sparklyr
-
-**Pharmaverse** (any package, as appropriate for clinical programming):
-- admiral, admiraldev
-- metacore, metatools
-- xportr
-- and other pharmaverse packages as needed for the task
-
-**Testing:**
-- testthat
-
-## Validation Process
-
-After generating code, follow this sequence:
-
-1. **Write** the function file to `R/`
-2. **Source** the function file in R to confirm it loads without errors
-3. **Write** the test file to `tests/`
-4. **Run** the test file with `Rscript -e 'testthat::test_file("tests/test-<name>.R")'`
-5. **If any step fails:** read the error, fix the code, and re-run from the failed step
-6. **Report** results to the user — confirm what passed, flag anything that needed revision
-
-For standalone scripts (not functions):
 1. **Write** the script
-2. **Execute** it section by section or in full via `Rscript`
+2. **Execute** it via `Rscript`
 3. **Fix and re-run** until clean execution
 4. **Report** results
 
-## Analysis Scripts
+Analysis scripts do not require a separate test file, but all code must still be executed to confirm it runs.
 
-When the user asks for analysis code (not a reusable function), write it as a standalone `.R` script in the project root or a location the user specifies. Follow the same style, commenting, and validation rules. Analysis scripts do not require a separate test file, but all code must still be executed to confirm it runs.
+## Data Dependencies
+
+Some scripts depend on input files that may not exist yet (e.g., a TFL program that reads `data/dm.xpt` before the simulation program has run). When this happens:
+
+- **If the input data exists:** Run the script normally.
+- **If the input data does not exist:** Tell the user which files are missing and which programs generate them (per `file-layout.md` naming conventions). Do not fabricate empty placeholder files. Instead, offer to generate the prerequisite program first.
+- **Cross-domain dependency order:** DM must be generated before any other SDTM domain. See `cdisc-conventions.md` for details.

@@ -30,10 +30,15 @@ Rscript -e '
   packages <- c(
     "tidyverse",
     "ggplot2",
+    "plotly",
     "sparklyr",
     "DBI",
+    "haven",
     "testthat",
     "admiral",
+    "xportr",
+    "metacore",
+    "metatools",
     "gt",
     "pharmaRTF",
     "huxtable"
@@ -58,10 +63,15 @@ local({
   packages <- c(
     "tidyverse",
     "ggplot2",
+    "plotly",
     "sparklyr",
     "DBI",
+    "haven",
     "testthat",
     "admiral",
+    "xportr",
+    "metacore",
+    "metatools",
     "gt",
     "pharmaRTF",
     "huxtable"
