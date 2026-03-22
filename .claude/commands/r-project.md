@@ -12,7 +12,6 @@ Create the following directories with `.gitkeep` placeholder files so they are t
 
 ```
 R/
-man/
 data/
 tests/
 ```
