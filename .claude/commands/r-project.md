@@ -28,12 +28,17 @@ Run the following shell commands to initialize `renv` and add the required packa
 Rscript -e '
   renv::init(bare = TRUE)
   packages <- c(
+    "conflicted",
+    "pysparklyr",
+    "sparklyr",
     "tidyverse",
     "ggplot2",
     "plotly",
-    "sparklyr",
     "DBI",
+    "odbc",
+    "dbplyr",
     "haven",
+    "httr2",
     "testthat",
     "admiral",
     "xportr",
@@ -59,34 +64,64 @@ Create `.Rprofile` in the project root with the following content. This file aut
 ```r
 # .Rprofile - Auto-load project packages on R startup
 
+library(conflicted)
+library(pysparklyr)
+library(sparklyr)
+library(tidyverse)
+library(DBI)
+library(odbc)
+library(dbplyr)
+
+options(renv.config.ppm.enabled = FALSE)
+
+# Set repos FIRST so renv bootstrap can reach CRAN
 local({
-  packages <- c(
-    "tidyverse",
-    "ggplot2",
-    "plotly",
-    "sparklyr",
-    "DBI",
-    "haven",
-    "testthat",
-    "admiral",
-    "xportr",
-    "metacore",
-    "metatools",
-    "gt",
-    "pharmaRTF",
-    "huxtable"
+  options(
+    repos = c(
+      CRAN   = "https://packagemanager.posit.co/cran/latest",
+      syapse = "https://packagemanager.posit.npowermedicine.com/internal/latest"
+    ),
+    pkgType = "binary"
   )
-
-  # Activate renv if available
-  if (file.exists("renv/activate.R")) {
-    source("renv/activate.R")
-  }
-
-  # Load packages, suppressing startup messages
-  invisible(lapply(packages, function(pkg) {
-    suppressPackageStartupMessages(library(pkg, character.only = TRUE))
-  }))
 })
+
+Sys.setenv(RENV_DOWNLOAD_METHOD = "curl")
+
+options(download.file.method = "curl")
+
+options(download.file.extra = paste(
+  "--netrc",
+  '-fsSL -w "%{stderr}curl: HTTP %{http_code} %{url_effective}\n"'
+))
+
+# Activate renv ONCE, after repos are configured
+source("renv/activate.R")
+
+options(saveworkspace = "no")
+
+conflict_prefer("filter", "dplyr", quiet = TRUE)
+
+.get_cluster_id <- function(cluster_name) {
+  response <- httr2::request(
+    paste0("https://", Sys.getenv("DATABRICKS_HOST"), "/api/2.0/clusters/list")
+  ) |>
+    httr2::req_auth_bearer_token(Sys.getenv("DATABRICKS_TOKEN")) |>
+    httr2::req_perform()
+
+  clusters <- httr2::resp_body_json(response)$clusters
+  match    <- Filter(function(c) c$cluster_name == cluster_name, clusters)
+
+  if (length(match) == 0) stop("Cluster not found: ", cluster_name)
+  match[[1]]$cluster_id
+}
+
+sc <- connect_databricks()
+
+options(odbc.no_config_override = TRUE)
+con <- DBI::dbConnect(
+  odbc::databricks(),
+  httpPath = Sys.getenv("DATABRICKS_HTTP")
+)
 ```
 
 ## 4. Create main.R

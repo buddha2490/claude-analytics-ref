@@ -34,6 +34,7 @@ Claude Code has four configuration layers. Each has a distinct role — understa
 | Skill | Trigger | What it does |
 |-------|---------|--------------|
 | `r-code` | Any R code request | Write → source → test → validate workflow with templates |
+| `databricks` | Any Databricks connection, query, schema, or data-pull request | Connection patterns, navigation, schema inspection, and `collect()`/`compute()`/`cache()` performance best practices |
 
 Skills inherit all rules automatically. The `r-code` skill doesn't restate style rules — it focuses purely on the 3-artifact workflow (function file, test file, validated execution).
 
