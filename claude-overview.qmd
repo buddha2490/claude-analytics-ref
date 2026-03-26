@@ -1,6 +1,7 @@
 ---
 title: "Claude Code for Clinical Programming"
 subtitle: "Reference Implementation Guide"
+author: "Brian Carter"
 date: last-modified
 format:
   html:
@@ -12,6 +13,36 @@ format:
     code-fold: true
     code-tools: true
 ---
+
+## Setup
+
+### Prerequisites
+
+Before using this repo, you need Claude Code installed and configured in Positron. Follow the setup guide:
+
+- [Claude Code Configuration for Positron](https://connect.posit.npowermedicine.com/claude-code-config/)
+
+The RAG server for CDISC standards lookup also needs to be configured separately:
+
+- [MCP RAG Server Setup](https://connect.posit.npowermedicine.com/claude-mcp-rag/)
+
+### Clone the Reference Repo
+
+```bash
+git clone https://github.com/N-Power-Medicine/claude-analytics-ref.git
+cd claude-analytics-ref
+```
+
+Once cloned, open the project folder in Positron. The `.vscode/tasks.json` will auto-launch Claude Code and a local shell. All rules, skills, commands, and agents are loaded automatically --- no additional configuration needed.
+
+To initialize the R environment:
+
+```r
+renv::restore()
+```
+
+This installs all approved packages from `renv.lock`.
+
 
 ## What This Repo Is
 
@@ -178,6 +209,16 @@ Triggers when you ask about connecting to Databricks, querying tables, or pullin
 - **Performance patterns**: `collect()` (pull to R), `compute()` (temp Spark table), `cache()` (pin in memory)
 - **Anti-patterns** to avoid (e.g., collecting before filtering)
 
+#### `ads-data` --- ADS Data Access
+
+Triggers when pulling, loading, exploring, or subsetting ADS (Analytical Dataset) data from Databricks. Covers:
+
+- **`get_ads()` function**: Pull ADS data by cohort (`"lung"`, `"bladder"`, `"breast"`, `"ovarian"`) and type (`"enriched"` vs `"essentials"`)
+- **Enriched vs Essentials**: Enriched = manually abstracted, highest quality, full variable coverage. Essentials = broader population, structured sources only.
+- **Nested JSON columns**: Systemic therapy, radiation, biomarkers, and line-of-therapy stored as JSON strings requiring `parse_json_col()` to expand
+- **Critical rule**: Always deduplicate to one row per `patientid` before parsing JSON to avoid explosive row duplication
+- **Patient identifier**: Always use `patientid` (UUID), count with `n_distinct(patientid)`
+
 ### Commands (`.claude/commands/`)
 
 **User-invoked actions.** Commands run only when you type `/command-name`.
@@ -220,57 +261,20 @@ The independent QC gate. Reviews but does **not** write production code.
 - **Structured report**: Produces a QC report with a verdict: PASS / PASS WITH WARNINGS / FAIL
 
 
-## CDISC RAG Server
+## Clinical Programming RAG Server
 
-The project connects to a local RAG (Retrieval-Augmented Generation) server for querying CDISC standards documentation. This gives Claude access to the full SDTM Implementation Guide, controlled terminology codelists, and any other documents you ingest.
+The project connects to a local RAG (Retrieval-Augmented Generation) server via MCP (Model Context Protocol). This gives Claude access to the full SDTM Implementation Guide, controlled terminology codelists, and any other documents you ingest.
 
-### Configuration
-
-The server is defined in `.mcp.json` at the project root:
-
-```json
-{
-  "mcpServers": {
-    "npm-rag-v1": {
-      "command": "/Users/briancarter/Rdata/npm-rag-v1/.venv/bin/python3",
-      "args": ["/Users/briancarter/Rdata/npm-rag-v1/scripts/mcp_server.py"],
-      "env": {
-        "DB_PATH": "/Users/briancarter/Rdata/npm-rag-v1/rag.db"
-      }
-    }
-  }
-}
-```
-
-The server runs as a local Python process using an SQLite-backed vector store at `rag.db`.
-
-### Available Tools
-
-The RAG server exposes six MCP tools that Claude can call:
-
-| Tool | Purpose |
-|------|---------|
-| `query_documents` | Search ingested documents by keyword and semantic similarity. Returns scored results. |
-| `ingest_file` | Add a PDF, DOCX, TXT, or MD file to the vector database. Supports re-ingestion to update. |
-| `ingest_data` | Ingest raw text, HTML, or markdown content (e.g., from web pages or clipboard). |
-| `delete_file` | Remove a previously ingested file or data source from the database. |
-| `list_files` | Show all files in the base directory and their ingestion status. |
-| `status` | Report total documents, chunks, database size, and configuration. |
+The server is configured in `.mcp.json` at the project root and runs as a local Python process backed by an SQLite vector store. It uses hybrid search (keyword + semantic) to return scored results from ingested documents.
 
 ### How It's Used
 
-The `/ct-lookup` command is the primary user-facing interface to the RAG. When you run:
+The `/ct-lookup` command is the primary user-facing interface to the RAG. When you run `/ct-lookup VSTESTCD`, Claude queries the vector store and formats the results as a clean table of valid codes and decodes.
 
-```
-/ct-lookup VSTESTCD
-```
-
-Claude constructs a query like `"CDISC controlled terminology for VSTESTCD"`, sends it to `query_documents`, and formats the results as a clean table of valid codes and decodes.
-
-The RAG is also available to agents. The `code-reviewer` can query it to verify that controlled terminology values in generated code match CDISC standards. The `r-clinical-programmer` can look up variable specifications while implementing SDTM mappings.
+Agents also use the RAG directly --- the `code-reviewer` verifies controlled terminology values in generated code, and the `r-clinical-programmer` looks up variable specifications while implementing SDTM mappings.
 
 ::: {.callout-note}
-For instructions on managing the RAG server (ingesting documents, checking status, rebuilding the index), see the separate MCP/RAG server documentation.
+For server setup, document ingestion, and index management, see the [MCP RAG Server documentation](https://connect.posit.npowermedicine.com/claude-mcp-rag/).
 :::
 
 
@@ -300,13 +304,15 @@ Mention Databricks, tables, or data pulls. The `databricks` skill fires automati
 
 ### CDISC Lookups
 
-Use the `/ct-lookup` command.
+Ask plain-English questions about CDISC standards. Claude queries the RAG server automatically.
 
-> `/ct-lookup VSTESTCD`
+> "What are the acceptable values for RACE in CDISC?"
 
-> `/ct-lookup AESEV`
+> "What vital signs test codes are valid for VSTESTCD?"
 
-> `/ct-lookup C66741`
+> "What are the controlled terminology options for adverse event severity?"
+
+> "How many ADS datasets do we have and what is the difference between enriched and essentials?"
 
 ### Planning a Feature
 
@@ -317,6 +323,8 @@ Describe what you want to build. Claude will engage the `feature-planner` agent.
 > "Plan a TFL program for Table 14.1.1 --- demographics summary"
 
 > "I need to refactor the TFL pipeline to support multiple output formats"
+
+> "I need the feature planner to scope out an R program. It needs to pull from the lung ADS dataset and subset only to cases diagnosed in 2025. At the end of the program, provide a frequency table of histological subtypes diagnosed across months of diagnosis."
 
 **What happens:** The planner asks clarifying questions, reviews the codebase, and produces a plan in `plans/`. Then you can tell Claude to implement it.
 
