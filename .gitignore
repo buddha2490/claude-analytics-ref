@@ -8,3 +8,7 @@
 renv/library/
 renv/staging/
 renv/sandbox/
+
+# user-specific directories
+notes.md
+
