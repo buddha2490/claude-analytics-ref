@@ -1,0 +1,618 @@
+---
+title: "Claude Code for Clinical Programming"
+subtitle: "Reference Implementation Guide"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    number-sections: true
+    theme: cosmo
+    code-fold: true
+    code-tools: true
+---
+
+## What This Repo Is
+
+This repository is a **reference implementation** demonstrating how to configure Claude Code for clinical programming workflows in R. It shows how four configuration layers --- rules, skills, commands, and agents --- compose together to enforce standards, automate workflows, and orchestrate multi-step tasks.
+
+The goal is to give your team a working example they can clone, customize, and extend for their own projects.
+
+### What You Get Out of the Box
+
+| Capability | How it works |
+|------------|-------------|
+| Enforced coding standards | 8 rule files covering R style, approved packages, CDISC conventions, data safety, and more |
+| Automated R code workflow | Write → test → execute → validate, every time |
+| Databricks integration patterns | Connection templates, schema navigation, performance best practices |
+| CDISC standards lookup | RAG-powered search over SDTM-IG and controlled terminology |
+| Multi-agent pipeline | Planner → Programmer → Reviewer, mirroring clinical QC |
+| Project scaffolding | One command to set up a new R project with renv and standard structure |
+| Team onboarding | Interactive walkthrough for new members |
+
+
+## Architecture
+
+Claude Code loads configuration in layers. Every conversation gets the full stack --- you never need to manually activate rules or remind Claude about standards.
+
+```
+Every conversation loads:
+  CLAUDE.md          → orientation (what is this project?)
+  + all rules/       → constraints (what standards apply?)
+  + relevant skill   → workflow (how do I produce the output?)
+  + command if invoked → action (run this specific task)
+  + agent if spawned  → role (who does this work?)
+```
+
+### How the Pieces Fit Together
+
+```{mermaid}
+%%| fig-width: 9
+%%| fig-cap: "Claude Code configuration architecture"
+flowchart TB
+    subgraph Always["Always Loaded (every conversation)"]
+        CM["CLAUDE.md<br/><i>Project orientation</i>"]
+        subgraph Rules[".claude/rules/"]
+            R1["r-style.md"]
+            R2["approved-packages.md"]
+            R3["namespace-conflicts.md"]
+            R4["cdisc-conventions.md"]
+            R5["file-layout.md"]
+            R6["data-safety.md"]
+            R7["git-conventions.md"]
+            R8["error-messages.md"]
+        end
+    end
+
+    subgraph AutoFire["Auto-Invoked Skills"]
+        S1["r-code<br/><i>Write → Test → Execute</i>"]
+        S2["databricks<br/><i>Connection & query patterns</i>"]
+    end
+
+    subgraph OnDemand["User-Invoked Commands"]
+        C1["/r-project<br/><i>Scaffold new project</i>"]
+        C2["/ct-lookup<br/><i>CDISC terminology</i>"]
+        C3["/onboard<br/><i>Team walkthrough</i>"]
+    end
+
+    subgraph Agents["Spawned Agents"]
+        A1["feature-planner<br/><i>Opus · Architect</i>"]
+        A2["r-clinical-programmer<br/><i>Sonnet · Implementer</i>"]
+        A3["code-reviewer<br/><i>Sonnet · QC Verifier</i>"]
+    end
+
+    subgraph External["External Services"]
+        MCP["CDISC RAG Server<br/><i>npm-rag-v1</i>"]
+        DB["Databricks<br/><i>via con / sc</i>"]
+    end
+
+    CM --> Rules
+    Rules --> AutoFire
+    Rules --> OnDemand
+    Rules --> Agents
+    C2 --> MCP
+    S2 --> DB
+    A1 -->|"plan"| A2
+    A2 -->|"implement"| A3
+    A3 -->|"QC report"| A3
+
+    style Always fill:#f0f4ff,stroke:#4a6fa5
+    style Rules fill:#e8eef7,stroke:#4a6fa5
+    style AutoFire fill:#f0fff0,stroke:#2d8a4e
+    style OnDemand fill:#fff8e1,stroke:#c79100
+    style Agents fill:#fef0f0,stroke:#c94040
+    style External fill:#f5f0ff,stroke:#7b5ea7
+```
+
+### The Standard Agent Pipeline
+
+For complex features, the three agents work in sequence --- mirroring the clinical programming QC model where one programmer writes and an independent reviewer verifies.
+
+```{mermaid}
+%%| fig-cap: "Agent orchestration pipeline"
+sequenceDiagram
+    participant U as User
+    participant FP as feature-planner<br/>(Opus)
+    participant RCP as r-clinical-programmer<br/>(Sonnet)
+    participant CR as code-reviewer<br/>(Sonnet)
+
+    U->>FP: "Build an AE simulation program"
+    FP->>U: Clarifying questions
+    U->>FP: Answers
+    FP->>FP: Assess codebase, identify risks
+    FP-->>RCP: plans/plan_sim_ae_2026-03-26.md
+
+    RCP->>RCP: Read plan
+    RCP->>RCP: Write programs/sim_ae.R
+    RCP->>RCP: Write tests/test-sim_ae.R
+    RCP->>RCP: Execute & fix until clean
+    RCP-->>CR: Implementation complete
+
+    CR->>CR: Read plan + implementation
+    CR->>CR: Run tests
+    CR->>CR: Check rules & CDISC compliance
+    CR-->>U: QC Report (PASS / FAIL)
+```
+
+
+## Configuration Layers
+
+### Rules (`.claude/rules/`)
+
+**Always-on project constraints.** Every rule file is loaded into context for every conversation, regardless of the task. Rules define *what standards this project enforces*.
+
+| Rule | Purpose |
+|------|---------|
+| `r-style.md` | Tidyverse style: `snake_case`, `%>%` pipe, section headers, 80-char lines |
+| `approved-packages.md` | Whitelist of allowed packages --- Claude asks before using anything else |
+| `namespace-conflicts.md` | Known conflicts (huxtable/pharmaRTF, dplyr/stats) and resolution patterns |
+| `cdisc-conventions.md` | USUBJID format, ISO 8601 dates, study day formula, cross-domain consistency |
+| `file-layout.md` | Directory structure (`R/`, `tests/`, `programs/`, `data/`, `output/`) and naming |
+| `data-safety.md` | No hardcoded credentials, no real patient data, `set.seed()` for simulations |
+| `git-conventions.md` | Branch naming (`sdtm/`, `tfl/`, `feat/`), commit format, PR requirements |
+| `error-messages.md` | Standard patterns for `stop()`, `warning()`, `message()` with `call. = FALSE` |
+
+Rules are *policies* --- they say what must be true, not how to do it.
+
+### Skills (`.claude/skills/`)
+
+**Procedural workflows that auto-invoke.** Skills define *how* work gets done. They fire automatically when the task matches.
+
+#### `r-code` --- R Code Generation
+
+Triggers on any R code request. Enforces a **3-artifact workflow**:
+
+1. **Write** the function file (`R/<name>.R`) with roxygen2 documentation
+2. **Write** the test file (`tests/test-<name>.R`) with testthat
+3. **Execute** both and iterate until clean --- no code is delivered until it runs
+
+This means every function Claude produces comes with tests and a confirmation that the code actually works.
+
+#### `databricks` --- Databricks Integration
+
+Triggers when you ask about connecting to Databricks, querying tables, or pulling data. Covers:
+
+- **Two connection objects**: `con` (DBI/ODBC for data retrieval) and `sc` (sparklyr for Spark-native operations)
+- **Three-part namespace**: `<catalog>.<schema>.<table>` with `in_catalog()` for dplyr
+- **Performance patterns**: `collect()` (pull to R), `compute()` (temp Spark table), `cache()` (pin in memory)
+- **Anti-patterns** to avoid (e.g., collecting before filtering)
+
+### Commands (`.claude/commands/`)
+
+**User-invoked actions.** Commands run only when you type `/command-name`.
+
+| Command | What it does |
+|---------|-------------|
+| `/r-project` | Scaffolds a new R project: creates `R/`, `tests/`, `data/` dirs, initializes renv with all approved packages, generates `.Rprofile` with Databricks connections, creates `main.R` template |
+| `/ct-lookup` | Queries the CDISC RAG server for controlled terminology. Example: `/ct-lookup VSTESTCD` returns a formatted table of valid values |
+| `/onboard` | Interactive 5-step walkthrough for new team members: orient, demonstrate capabilities, explain rules, list commands, wrap up |
+
+### Agents (`.claude/agents/`)
+
+**Specialized subprocesses for complex work.** Each agent has its own model, role, and persistent memory.
+
+#### `feature-planner` (Opus)
+
+The architect. Runs *before* any coding begins.
+
+- **Discovery**: Reads the codebase, reviews existing patterns and dependencies
+- **Assessment**: Asks 3--7 clarifying questions, pushes back on problems, suggests enhancements
+- **Planning**: Produces a structured markdown plan in `plans/plan_<feature>_<date>.md`
+- **Orchestration**: Ends every plan with a task table assigning work to other agents
+
+#### `r-clinical-programmer` (Sonnet)
+
+The implementer. Follows plans and writes all R code.
+
+- **Mandatory execution**: Every line of code is run before it's returned --- no exceptions
+- **Iterate on errors**: If code fails, diagnoses and fixes automatically until clean
+- **Plan-aware**: Reads the plan from `plans/` and follows the orchestration guide
+- **Deep expertise**: Tidyverse, admiral, xportr, pharmaverse, CDISC standards
+
+#### `code-reviewer` (Sonnet)
+
+The independent QC gate. Reviews but does **not** write production code.
+
+- **Systematic checklist**: Plan alignment, rule compliance, code quality, test coverage, CDISC compliance
+- **Severity levels**: BLOCKING (must fix), WARNING (should fix), NOTE (suggestions)
+- **Runs tests**: Executes the test suite and reports results
+- **Structured report**: Produces a QC report with a verdict: PASS / PASS WITH WARNINGS / FAIL
+
+
+## CDISC RAG Server
+
+The project connects to a local RAG (Retrieval-Augmented Generation) server for querying CDISC standards documentation. This gives Claude access to the full SDTM Implementation Guide, controlled terminology codelists, and any other documents you ingest.
+
+### Configuration
+
+The server is defined in `.mcp.json` at the project root:
+
+```json
+{
+  "mcpServers": {
+    "npm-rag-v1": {
+      "command": "/Users/briancarter/Rdata/npm-rag-v1/.venv/bin/python3",
+      "args": ["/Users/briancarter/Rdata/npm-rag-v1/scripts/mcp_server.py"],
+      "env": {
+        "DB_PATH": "/Users/briancarter/Rdata/npm-rag-v1/rag.db"
+      }
+    }
+  }
+}
+```
+
+The server runs as a local Python process using an SQLite-backed vector store at `rag.db`.
+
+### Available Tools
+
+The RAG server exposes six MCP tools that Claude can call:
+
+| Tool | Purpose |
+|------|---------|
+| `query_documents` | Search ingested documents by keyword and semantic similarity. Returns scored results. |
+| `ingest_file` | Add a PDF, DOCX, TXT, or MD file to the vector database. Supports re-ingestion to update. |
+| `ingest_data` | Ingest raw text, HTML, or markdown content (e.g., from web pages or clipboard). |
+| `delete_file` | Remove a previously ingested file or data source from the database. |
+| `list_files` | Show all files in the base directory and their ingestion status. |
+| `status` | Report total documents, chunks, database size, and configuration. |
+
+### How It's Used
+
+The `/ct-lookup` command is the primary user-facing interface to the RAG. When you run:
+
+```
+/ct-lookup VSTESTCD
+```
+
+Claude constructs a query like `"CDISC controlled terminology for VSTESTCD"`, sends it to `query_documents`, and formats the results as a clean table of valid codes and decodes.
+
+The RAG is also available to agents. The `code-reviewer` can query it to verify that controlled terminology values in generated code match CDISC standards. The `r-clinical-programmer` can look up variable specifications while implementing SDTM mappings.
+
+::: {.callout-note}
+For instructions on managing the RAG server (ingesting documents, checking status, rebuilding the index), see the separate MCP/RAG server documentation.
+:::
+
+
+## Prompt Guide
+
+How you phrase your request determines which parts of the system activate. Here are patterns that work well.
+
+### Simple R Code
+
+Just ask. The `r-code` skill fires automatically.
+
+> "Write a function that calculates study days from a reference date and an event date"
+
+> "Write a function that formats p-values for a TFL"
+
+**What happens:** Claude writes the function in `R/`, writes tests in `tests/`, executes both, and reports results. You get working, tested code.
+
+### Databricks Queries
+
+Mention Databricks, tables, or data pulls. The `databricks` skill fires automatically.
+
+> "Pull the active treatment lines from the lung lot table"
+
+> "Show me the schema for development.ads.enriched_lung_lot"
+
+> "How many rows are in the patients table?"
+
+### CDISC Lookups
+
+Use the `/ct-lookup` command.
+
+> `/ct-lookup VSTESTCD`
+
+> `/ct-lookup AESEV`
+
+> `/ct-lookup C66741`
+
+### Planning a Feature
+
+Describe what you want to build. Claude will engage the `feature-planner` agent.
+
+> "I want to build a simulation program for the AE domain"
+
+> "Plan a TFL program for Table 14.1.1 --- demographics summary"
+
+> "I need to refactor the TFL pipeline to support multiple output formats"
+
+**What happens:** The planner asks clarifying questions, reviews the codebase, and produces a plan in `plans/`. Then you can tell Claude to implement it.
+
+### Running the Full Pipeline
+
+After planning, tell Claude to implement and review.
+
+> "Implement the plan in plans/plan_sim_ae_2026-03-26.md"
+
+> "Now run the code reviewer on the AE simulation"
+
+### Quick Questions
+
+Ask anything about project standards --- Claude reads the rules.
+
+> "What packages are approved for this project?"
+
+> "How should I name my branch for a new SDTM domain?"
+
+> "What's the study day calculation formula?"
+
+### Scaffolding a New Project
+
+> `/r-project`
+
+This creates the full directory structure, initializes renv, installs all approved packages, and generates `.Rprofile` and `main.R`.
+
+
+## How to Create New Configuration
+
+### Creating a New Rule
+
+Rules go in `.claude/rules/` as markdown files. They are always loaded, so keep them focused and concise.
+
+**When to create a rule:** When a constraint applies across *all* tasks --- code generation, review, refactoring, testing.
+
+**Template:**
+
+```markdown
+# Rule Title
+
+Brief description of what this rule enforces and why.
+
+## Section 1
+
+- Specific requirement
+- Specific requirement
+
+## Section 2
+
+| Pattern | Example |
+|---------|---------|
+| what to do | how it looks |
+
+## Exceptions
+
+- When this rule does NOT apply
+```
+
+**Guidelines:**
+
+- One concern per rule file (don't combine style and safety in one file)
+- State what must be true, not how to achieve it (that's what skills are for)
+- Include examples of correct and incorrect patterns
+- Reference other rules by filename when there's overlap
+- Add the rule to the table in `CLAUDE.md` so the team knows it exists
+
+### Creating a New Skill
+
+Skills go in `.claude/skills/<skill-name>/SKILL.md`. They auto-invoke based on their description.
+
+**When to create a skill:** When a specific task type needs a repeatable, multi-step workflow.
+
+**Template:**
+
+```markdown
+---
+name: my-skill
+description: Auto-invoked when [trigger condition]. Governs [what workflow].
+---
+
+# Skill Title
+
+Brief description of what this skill does and when it fires.
+
+## Core Principle
+
+The single most important rule for this workflow.
+
+## Workflow
+
+### Step 1: [Action]
+What to do first.
+
+### Step 2: [Action]
+What to do next.
+
+### Step 3: [Validation]
+How to confirm the output is correct.
+
+## Templates
+
+Code or file templates that should be followed.
+
+## Edge Cases
+
+How to handle situations where the normal workflow doesn't apply.
+```
+
+**Guidelines:**
+
+- The `description` field in the frontmatter controls when the skill fires --- make it specific
+- Don't restate rules (they're inherited automatically). Reference them by name.
+- Focus on *procedure* (how), not *policy* (what) --- policy belongs in rules
+- Include templates for any files the skill generates
+- Define what "done" looks like (validation criteria)
+
+### Creating a New Command
+
+Commands go in `.claude/commands/<command-name>.md`. They run only when the user types `/command-name`.
+
+**When to create a command:** For on-demand, one-shot tasks like scaffolding, generation, or lookup.
+
+**Template:**
+
+```markdown
+---
+description: One-line description shown in the command list
+---
+
+# Command Title
+
+Describe the user's intent when invoking this command.
+
+## What to do
+
+1. Step-by-step instructions for Claude to follow
+2. Include specifics about tools to use, output format, etc.
+
+## Output Format
+
+How the result should be presented to the user.
+
+## Error Handling
+
+What to do when things go wrong.
+```
+
+**Guidelines:**
+
+- The `description` field shows up in `/help` output --- keep it under 80 characters
+- Commands should be self-contained (the user shouldn't need to provide additional context unless the command asks for it)
+- Include the expected output format so results are consistent
+
+### Creating a New Agent
+
+Agents go in `.claude/agents/<agent-name>.md`. They are spawned by the main conversation or by other agents.
+
+**When to create an agent:** When a role requires a distinct persona, model choice, or tool scope.
+
+**Template:**
+
+```markdown
+---
+name: my-agent
+description: "When to spawn this agent and example triggers.
+
+Examples:
+
+- User: \"example request\"
+  Assistant: \"I'll use the my-agent to handle this.\"
+  [Uses Agent tool to launch my-agent]"
+model: sonnet  # or opus for planning/architecture tasks
+color: blue    # terminal color: red, green, blue, yellow, cyan, magenta
+memory: project  # or agent
+---
+
+You are a [role description]. Your expertise includes [domains].
+
+## Core Behavioral Rules
+
+1. **Rule 1.** What this agent must always do.
+2. **Rule 2.** What this agent must never do.
+
+## Workflow
+
+### Step 1: [Phase]
+What to do and how.
+
+### Step 2: [Phase]
+What to do and how.
+
+## Output Format
+
+The exact structure of what this agent returns.
+
+## Communication Style
+
+How this agent should communicate (direct, friendly, formal, etc.).
+
+## Update your agent memory
+[Instructions for what to record in persistent memory]
+```
+
+**Guidelines:**
+
+- The `description` field tells the main conversation *when* to spawn this agent --- include example triggers
+- Choose `model: opus` for planning and architecture, `model: sonnet` for implementation and review
+- The `memory` field sets memory scope: `project` (shared across agents) or `agent` (private)
+- Don't restate rules or skills --- agents inherit everything automatically
+- Define a clear output format so results are predictable
+- Include memory instructions so the agent builds institutional knowledge over time
+
+### Creating a New Plan
+
+Plans are generated by the `feature-planner` agent, but you can also create them manually. They go in `plans/plan_<feature>_<date>.md`.
+
+**Structure:**
+
+```markdown
+# Implementation Plan: [Feature Name]
+**Date:** [YYYY-MM-DD]
+**Status:** Draft | Approved
+
+## 1. Overview
+What the feature does and why.
+
+## 2. Requirements
+- Functional requirements
+- Non-functional requirements
+- Clarifications from discussion
+
+## 3. Current State Assessment
+- Relevant existing code
+- Dependencies
+- Known constraints
+
+## 4. Proposed Design
+- Architecture and approach
+- Key functions to create or modify
+- Data flow
+
+## 5. Enhancements
+- Enhancement 1: description and rationale
+- Enhancement 2: description and rationale
+
+## 6. Risks and Mitigations
+- Risk → Mitigation
+
+## 7. Testing Strategy
+- Unit tests
+- Integration tests
+- Validation approach
+
+## 8. Orchestration Guide
+
+| Task | Agent | Priority | Dependencies | Description |
+|------|-------|----------|--------------|-------------|
+| 1 | r-clinical-programmer | P1 | None | [task] |
+| 2 | code-reviewer | P2 | Task 1 | [task] |
+```
+
+The orchestration guide at the end is what makes plans actionable --- it tells Claude exactly which agent handles each task and in what order.
+
+
+## File Layout
+
+```
+.claude/
+  rules/              ← Always-on constraints (8 rule files)
+  skills/             ← Auto-invoked workflows (r-code, databricks)
+  commands/           ← User-invoked actions (/r-project, /ct-lookup, /onboard)
+  agents/             ← Specialized roles (planner, programmer, reviewer)
+  agent-memory/       ← Persistent memory for each agent
+R/                    ← Reusable function files (one function per file)
+tests/                ← testthat test files (test-<name>.R)
+programs/             ← Analysis scripts, simulations, data pulls, mappings
+data/                 ← SDTM/ADaM XPT datasets
+  raw/                ← Raw source data from Databricks
+output/               ← RTF tables, figures, listings
+plans/                ← Implementation plans from feature-planner
+docs/                 ← Documentation and specs
+artifacts/            ← Study documents (SAP, data dictionaries, table shells)
+example-code/         ← Reference examples (Databricks connection patterns)
+```
+
+
+## Quick Reference
+
+| I want to... | Do this |
+|--------------|---------|
+| Write an R function | Just describe it --- `r-code` skill handles the rest |
+| Look up CDISC terminology | `/ct-lookup <variable>` |
+| Start a new project | `/r-project` |
+| Plan a complex feature | Describe what you want to build |
+| Run QC on code | "Review the [file] I just wrote" |
+| Query Databricks | Mention the table or schema you need |
+| Onboard a new team member | `/onboard` |
+| Check project standards | Ask any question about rules |
