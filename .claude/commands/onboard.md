@@ -18,10 +18,10 @@ Then show them the project structure by listing the key directories:
 
 ```
 .claude/
-  rules/       ← Standards that apply to ALL work (style, packages, CDISC, safety)
-  skills/      ← Automated workflows (how R code gets generated and tested)
+  rules/       ← Standards that apply to ALL work (style, packages, CDISC, safety, ADS QA)
+  skills/      ← Automated workflows (how R code gets generated, Databricks, ADS data)
   commands/    ← On-demand actions you invoke with /command-name
-  agents/      ← Specialized AI roles (planner, programmer, reviewer)
+  agents/      ← Specialized AI roles (planner, programmer, reviewer, ADS QA reviewer)
 R/             ← Reusable function files
 tests/         ← testthat test files
 programs/      ← Analysis scripts, simulations, data pulls, mappings
@@ -73,9 +73,31 @@ This is the 3-artifact workflow: function + tests + validated execution.
 Explain the planner → programmer → reviewer pipeline:
 1. **feature-planner** (Opus) reviews the codebase, asks you questions, and writes a plan to `plans/`
 2. **r-clinical-programmer** (Sonnet) implements the plan, writing and testing all code
-3. **code-reviewer** (Sonnet) independently verifies the implementation against the plan and rules, producing a QC report
+3. **clinical-code-reviewer** (Sonnet) independently verifies the implementation against the plan and rules, producing a QC report
 
 This mirrors clinical programming QC: one programmer writes, an independent reviewer verifies.
+
+### Try 5: Work with ADS data on Databricks
+> If the team member will be doing ADS/Databricks work, show them this too. Try:
+> - "How do I connect to Databricks?"
+> - "Pull the ADS data for Lung cohort, essentials type"
+> - "Build a cohort exclusion cascade from the ADS"
+
+Explain the three ADS-related skills that auto-activate:
+- **`databricks` skill** — fires when you ask about connecting to Databricks, querying tables, or browsing schemas. Handles `DBI`/`ODBC` and `sparklyr` patterns.
+- **`ads-data` skill** — fires when you're loading or subsetting ADS data. Covers `get_ads()` usage, `enriched` vs `essentials` types, tumor cohorts, and nested JSON columns.
+- **`cohort-cascade` skill** — fires when you're building exclusion criteria or attrition tables. Enforces the `df → df1/df2/... → cohort` cascade pattern with cumulative exclusion flags.
+
+### Try 6: Run an ADS QA review
+> If the team member will be doing ADS branch QA reviews:
+> - Clone the ADS branch you're reviewing into a local folder
+> - Run: `/ads-qa-review ADS-402-branch-name "Your Name"`
+
+Explain how it works:
+1. The `/ads-qa-review` command locates the cloned branch, extracts the git diff, and reads the Jira ticket
+2. It spawns the **ads-qa-reviewer** (Opus) agent, which reads the diff, queries the RAG for codebase context, and validates variable specs against the ADS MCP server
+3. A structured review report is produced with BLOCKING / WARNING / NOTE / STRENGTH findings
+4. The report is an **aid for the human reviewer** — not a substitute. The reviewer is accountable for the final approval.
 
 ## Step 3: Explain the rules
 
@@ -90,12 +112,14 @@ Read each rule file from `.claude/rules/` and give a one-sentence summary of eac
 - **data-safety.md** — No real patient data in code, no hardcoded credentials
 - **git-conventions.md** — Branch naming, commit message format, PR requirements
 - **error-messages.md** — How to use `stop()`, `warning()`, `message()` in functions
+- **ads-qa-review-standards.md** — Severity taxonomy, ADS-specific defect patterns (deduplication, `patientid`, `enriched_cohort_flag`, date granularity), and the required report structure for ADS QA reviews
 
 ## Step 4: Show available commands
 
 List all commands in `.claude/commands/` with their descriptions:
 - `/r-project` — Scaffold a new R project with renv and standard structure
 - `/ct-lookup` — Look up CDISC controlled terminology values
+- `/ads-qa-review` — Run an AI-assisted QA review on a cloned ADS branch
 - `/onboard` — This walkthrough (they're in it now)
 
 ## Step 5: Wrap up
@@ -106,7 +130,8 @@ End with:
 > 1. Claude enforces project rules automatically — you don't need to memorize them
 > 2. All R code Claude writes is executed and tested before you see it
 > 3. For complex work, start with the planner — don't jump straight to code
-> 4. The code-reviewer agent is your QC step — use it before committing
-> 5. If you're unsure, just ask Claude — it knows the project
+> 4. The clinical-code-reviewer agent is your QC step for R code — use it before committing
+> 5. For ADS branch reviews, use `/ads-qa-review` — it's a structured starting point, not a final verdict
+> 6. If you're unsure, just ask Claude — it knows the project
 
 Ask if they have any questions about the setup or want to try anything specific.

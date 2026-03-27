@@ -54,11 +54,12 @@ The goal is to give your team a working example they can clone, customize, and e
 
 | Capability | How it works |
 |------------|-------------|
-| Enforced coding standards | 8 rule files covering R style, approved packages, CDISC conventions, data safety, and more |
+| Enforced coding standards | 9 rule files covering R style, approved packages, CDISC conventions, data safety, ADS QA standards, and more |
 | Automated R code workflow | Write → test → execute → validate, every time |
 | Databricks integration patterns | Connection templates, schema navigation, performance best practices |
 | CDISC standards lookup | RAG-powered search over SDTM-IG and controlled terminology |
 | Multi-agent pipeline | Planner → Programmer → Reviewer, mirroring clinical QC |
+| ADS branch QA reviews | AI-assisted review against Jira tickets with RAG codebase context and ADS variable validation |
 | Project scaffolding | One command to set up a new R project with renv and standard structure |
 | Team onboarding | Interactive walkthrough for new members |
 
@@ -93,24 +94,29 @@ flowchart TB
             R6["data-safety.md"]
             R7["git-conventions.md"]
             R8["error-messages.md"]
+            R9["ads-qa-review-standards.md"]
         end
     end
 
     subgraph AutoFire["Auto-Invoked Skills"]
         S1["r-code<br/><i>Write → Test → Execute</i>"]
         S2["databricks<br/><i>Connection & query patterns</i>"]
+        S3["ads-data<br/><i>get_ads() · JSON columns</i>"]
+        S4["cohort-cascade<br/><i>Exclusion criteria</i>"]
     end
 
     subgraph OnDemand["User-Invoked Commands"]
         C1["/r-project<br/><i>Scaffold new project</i>"]
         C2["/ct-lookup<br/><i>CDISC terminology</i>"]
         C3["/onboard<br/><i>Team walkthrough</i>"]
+        C4["/ads-qa-review<br/><i>ADS branch QA review</i>"]
     end
 
     subgraph Agents["Spawned Agents"]
         A1["feature-planner<br/><i>Opus · Architect</i>"]
         A2["r-clinical-programmer<br/><i>Sonnet · Implementer</i>"]
-        A3["code-reviewer<br/><i>Sonnet · QC Verifier</i>"]
+        A3["clinical-code-reviewer<br/><i>Sonnet · QC Verifier</i>"]
+        A4["ads-qa-reviewer<br/><i>Opus · ADS QA Reviewer</i>"]
     end
 
     subgraph External["External Services"]
@@ -123,10 +129,13 @@ flowchart TB
     Rules --> OnDemand
     Rules --> Agents
     C2 --> MCP
+    C4 --> A4
     S2 --> DB
     A1 -->|"plan"| A2
     A2 -->|"implement"| A3
     A3 -->|"QC report"| A3
+    A4 --> MCP
+    A4 --> DB
 
     style Always fill:#f0f4ff,stroke:#4a6fa5
     style Rules fill:#e8eef7,stroke:#4a6fa5
@@ -146,7 +155,7 @@ sequenceDiagram
     participant U as User
     participant FP as feature-planner<br/>(Opus)
     participant RCP as r-clinical-programmer<br/>(Sonnet)
-    participant CR as code-reviewer<br/>(Sonnet)
+    participant CR as clinical-code-reviewer<br/>(Sonnet)
 
     U->>FP: "Build an AE simulation program"
     FP->>U: Clarifying questions
@@ -183,6 +192,7 @@ sequenceDiagram
 | `data-safety.md` | No hardcoded credentials, no real patient data, `set.seed()` for simulations |
 | `git-conventions.md` | Branch naming (`sdtm/`, `tfl/`, `feat/`), commit format, PR requirements |
 | `error-messages.md` | Standard patterns for `stop()`, `warning()`, `message()` with `call. = FALSE` |
+| `ads-qa-review-standards.md` | Severity taxonomy, ADS-specific defect patterns, and required report format for ADS branch QA reviews |
 
 Rules are *policies* --- they say what must be true, not how to do it.
 
@@ -219,6 +229,15 @@ Triggers when pulling, loading, exploring, or subsetting ADS (Analytical Dataset
 - **Critical rule**: Always deduplicate to one row per `patientid` before parsing JSON to avoid explosive row duplication
 - **Patient identifier**: Always use `patientid` (UUID), count with `n_distinct(patientid)`
 
+#### `cohort-cascade` --- Exclusion Cascades and Attrition Tables
+
+Triggers when building exclusion criteria or patient attrition tables. Enforces the cascade pattern:
+
+- **Named intermediate frames**: `df → df1 → df2 → ... → cohort` — each step is a distinct named object, never overwriting `df`
+- **Cumulative exclusion flags**: Each exclusion step adds a flag variable (`excl_<reason>`) so the full attrition path per patient is auditable
+- **Final cohort**: The terminal object is always named `cohort`
+- **Attrition table**: Produces a summary table with N excluded and N remaining at each step
+
 ### Commands (`.claude/commands/`)
 
 **User-invoked actions.** Commands run only when you type `/command-name`.
@@ -227,7 +246,8 @@ Triggers when pulling, loading, exploring, or subsetting ADS (Analytical Dataset
 |---------|-------------|
 | `/r-project` | Scaffolds a new R project: creates `R/`, `tests/`, `data/` dirs, initializes renv with all approved packages, generates `.Rprofile` with Databricks connections, creates `main.R` template |
 | `/ct-lookup` | Queries the CDISC RAG server for controlled terminology. Example: `/ct-lookup VSTESTCD` returns a formatted table of valid values |
-| `/onboard` | Interactive 5-step walkthrough for new team members: orient, demonstrate capabilities, explain rules, list commands, wrap up |
+| `/onboard` | Interactive 6-step walkthrough for new team members: orient, demonstrate capabilities (including ADS/Databricks and QA review), explain rules, list commands, wrap up |
+| `/ads-qa-review` | Orchestrates an AI-assisted QA review on a cloned ADS branch: extracts git diff, parses Jira ticket, spawns the `ads-qa-reviewer` agent, saves structured report |
 
 ### Agents (`.claude/agents/`)
 
@@ -251,7 +271,7 @@ The implementer. Follows plans and writes all R code.
 - **Plan-aware**: Reads the plan from `plans/` and follows the orchestration guide
 - **Deep expertise**: Tidyverse, admiral, xportr, pharmaverse, CDISC standards
 
-#### `code-reviewer` (Sonnet)
+#### `clinical-code-reviewer` (Sonnet)
 
 The independent QC gate. Reviews but does **not** write production code.
 
@@ -259,6 +279,18 @@ The independent QC gate. Reviews but does **not** write production code.
 - **Severity levels**: BLOCKING (must fix), WARNING (should fix), NOTE (suggestions)
 - **Runs tests**: Executes the test suite and reports results
 - **Structured report**: Produces a QC report with a verdict: PASS / PASS WITH WARNINGS / FAIL
+
+#### `ads-qa-reviewer` (Opus)
+
+The ADS branch reviewer. Invoked by `/ads-qa-review` — not by conversation patterns.
+
+- **Diff-driven**: Analyzes only what changed in the branch (`git diff origin/master...HEAD`)
+- **Ticket-first**: Parses the Jira ticket and checks every stated requirement against the code
+- **RAG-informed**: Queries the indexed `analytical-datasets` codebase to understand cross-file impact
+- **ADS MCP-validated**: Looks up variable definitions to verify derivation logic against the spec
+- **Prescriptive findings**: Every BLOCKING and WARNING includes a replacement code block with exact line numbers
+- **Balanced report**: Documents strengths alongside issues; ends with a clean required-changes list
+- **Advisory only**: Findings are a starting point for human review, not a substitute for it
 
 
 ## Clinical Programming RAG Server
@@ -271,11 +303,129 @@ The server is configured in `.mcp.json` at the project root and runs as a local 
 
 The `/ct-lookup` command is the primary user-facing interface to the RAG. When you run `/ct-lookup VSTESTCD`, Claude queries the vector store and formats the results as a clean table of valid codes and decodes.
 
-Agents also use the RAG directly --- the `code-reviewer` verifies controlled terminology values in generated code, and the `r-clinical-programmer` looks up variable specifications while implementing SDTM mappings.
+Agents also use the RAG directly --- the `clinical-code-reviewer` verifies controlled terminology values in generated code, and the `r-clinical-programmer` looks up variable specifications while implementing SDTM mappings.
 
 ::: {.callout-note}
 For server setup, document ingestion, and index management, see the [MCP RAG Server documentation](https://connect.posit.npowermedicine.com/claude-mcp-rag/).
 :::
+
+
+## ADS QA Reviews
+
+One of the most time-intensive parts of ADS development is the code review: a reviewer must read the diff, understand the ticket, check against the data dictionary, and assess whether the code is correct — all while holding in mind how the change interacts with the broader codebase. The `/ads-qa-review` command automates the scaffolding work so the reviewer can focus on the decisions that require human judgment.
+
+::: {.callout-important}
+**The AI QA reviewer is a tool, not a substitute.** The report it produces surfaces likely issues and provides suggested fixes. It cannot fully validate statistical correctness, run the pipeline against live data, or apply the clinical domain expertise that a human reviewer brings. The reviewer is accountable for the approval decision. Use the report to focus your review, not to replace it.
+:::
+
+### How It Works
+
+```{mermaid}
+%%| fig-cap: "ADS QA Review workflow"
+sequenceDiagram
+    participant U as Reviewer
+    participant CMD as /ads-qa-review
+    participant AGT as ads-qa-reviewer<br/>(Opus)
+    participant RAG as ADS RAG
+    participant MCP as ADS MCP
+
+    U->>CMD: /ads-qa-review ADS-402-... "Jane Smith"
+    CMD->>CMD: Detect ticket ADS-402
+    CMD->>CMD: git diff origin/master...HEAD
+    CMD->>AGT: Branch dir, ticket, diff, reviewer name
+
+    AGT->>AGT: Parse Jira ticket HTML
+    AGT->>RAG: Query changed functions/files for codebase context
+    AGT->>MCP: Validate variable derivations against ADS spec
+    AGT->>AGT: Read full content of changed files
+    AGT->>AGT: Execute review checklist
+    AGT-->>U: QA review report saved to QA reviews/output/
+```
+
+The command does the mechanical setup (git diff, ticket location, output path) and hands everything to the `ads-qa-reviewer` agent. The agent uses two external data sources that make the review substantive rather than superficial:
+
+- **RAG (ADS codebase documentation)**: The `analytical-datasets` codebase and ADS data dictionaries are indexed in the RAG. For every changed file, the agent queries how that function or variable is used elsewhere in the codebase — catching cross-file impact that a diff-only review would miss.
+
+- **ADS MCP (variable data dictionary)**: The ADS MCP provides structured access to variable definitions, derivation rules, and value sets. If a ticket modifies a variable derivation, the agent validates the logic against the spec and flags divergence.
+
+### Running a Review
+
+#### Step 1: Clone the branch
+
+```bash
+cd "QA reviews"
+git clone --branch ADS-402-med-admin-bh-mlh-advent --single-branch \
+  git@github.com:syapse/analytical-datasets.git ADS-402-med-admin-bh-mlh-advent
+```
+
+#### Step 2: Confirm the ticket file exists
+
+Ticket files live at `QA reviews/tickets/ADS-###.doc`. These are Jira exports (HTML format). If the ticket isn't there, add it before running the review — ticket fidelity analysis is one of the most important parts of the report.
+
+#### Step 3: Run the review
+
+```
+/ads-qa-review ADS-402-med-admin-bh-mlh-advent "Your Name"
+```
+
+The report is saved to:
+```
+QA reviews/output/ADS-402-med-admin-bh-mlh-advent-qa-review-YYYY-MM-DD.md
+```
+
+### What the Report Contains
+
+| Section | Purpose |
+|---------|---------|
+| **Ticket Overview** | Synthesized summary of the ticket: problem being solved, stated acceptance criteria |
+| **Changed Files** | Table of every file touched, with one-line descriptions; commit log |
+| **Changed Code** | Formatted diff organized by file, with inline annotations |
+| **Code Review Findings** | Structured by severity: BLOCKING → WARNING → NOTE |
+| **Strengths** | What the implementation does well (specific, not generic) |
+| **Weaknesses and Concerns** | Problematic patterns that don't rise to a formal finding |
+| **Required Changes Summary** | Numbered list of all BLOCKING items — the minimum to fix before merge |
+| **Reviewer Notes** | Blank section for the human reviewer's sign-off |
+
+Every BLOCKING and WARNING finding includes a **replacement code block** — exact file path, line numbers, and runnable corrected code the reviewer can copy directly.
+
+### Review Categories
+
+The agent checks five categories per `ads-qa-review-standards.md`:
+
+1. **Ticket Fidelity** — Does the code do what the ticket says? Are acceptance criteria met?
+2. **ADS Data Patterns** — Deduplication before JSON parsing, `patientid` usage, `enriched_cohort_flag` handling, date granularity, `get_ads()` parameters
+3. **Code Correctness** — Logical errors, NA/NULL handling, join correctness, filter conditions
+4. **Cross-Codebase Impact** — Do changed functions break callers? Are new variables added consistently across tumor files? Are `NEWS.md` and whitelists updated?
+5. **Style and Conventions** — Per `r-style.md` and `data-safety.md`
+
+### What It Cannot Do
+
+- **Live pipeline execution**: The agent cannot run the ADS pipeline against Databricks. It cannot tell you whether the derived values are numerically correct — only whether the logic *appears* correct given the code and spec.
+- **Statistical validation**: Clinical correctness of a derived variable (e.g., "is this the right formula for LVI status?") requires clinical and domain expertise.
+- **Full regression coverage**: Changes to shared utility functions may have downstream effects that only manifest at runtime. The agent checks for obvious callers via RAG but cannot guarantee complete coverage.
+- **Approval authority**: Only a qualified human reviewer can approve a branch for merge.
+
+### Naming Conventions
+
+The `ads-qa-*` prefix marks all QA review configuration:
+
+| File | Purpose |
+|------|---------|
+| `.claude/rules/ads-qa-review-standards.md` | Always-loaded standards: severity taxonomy, ADS-specific defect patterns, output format |
+| `.claude/commands/ads-qa-review.md` | `/ads-qa-review` command: orchestration, git diff, agent handoff |
+| `.claude/agents/ads-qa-reviewer.md` | The reviewer agent: diff analysis, RAG queries, report generation |
+
+Output reports live in `QA reviews/output/` and are named `<branch-folder>-qa-review-<YYYY-MM-DD>.md`.
+
+### Extending the QA Toolset
+
+The RAG is the key leverage point for future ADS QA enhancements. Because the full codebase and data dictionary are indexed, the agent can answer questions like:
+
+- "Is this derivation consistent with how it's done in the breast ADS?"
+- "Are there other places in the codebase where this variable is referenced?"
+- "What does the ADS spec say about NULL handling for this variable?"
+
+As the codebase evolves, keeping the RAG index up to date is the single most important maintenance task for AI-assisted review quality. The more current the index, the better the cross-codebase impact analysis.
 
 
 ## Prompt Guide
@@ -345,6 +495,16 @@ Ask anything about project standards --- Claude reads the rules.
 > "How should I name my branch for a new SDTM domain?"
 
 > "What's the study day calculation formula?"
+
+### ADS QA Reviews
+
+Invoke with the branch folder name. Reviewer name is optional but recommended for the report header.
+
+> `/ads-qa-review ADS-402-med-admin-bh-mlh-advent "Jane Smith"`
+
+> `/ads-qa-review ADS-391-Add-LVI-from-OC`
+
+**What happens:** The command locates the cloned branch in `QA reviews/`, extracts the ticket number, runs the git diff against `origin/master`, finds the ticket doc, and launches the `ads-qa-reviewer` agent. The agent queries the RAG for codebase context, validates variable specs via the ADS MCP, and produces a structured report in `QA reviews/output/`. The report includes findings by severity, replacement code blocks for every issue, and a sign-off section for the human reviewer.
 
 ### Scaffolding a New Project
 
@@ -584,7 +744,7 @@ What the feature does and why.
 | Task | Agent | Priority | Dependencies | Description |
 |------|-------|----------|--------------|-------------|
 | 1 | r-clinical-programmer | P1 | None | [task] |
-| 2 | code-reviewer | P2 | Task 1 | [task] |
+| 2 | clinical-code-reviewer | P2 | Task 1 | [task] |
 ```
 
 The orchestration guide at the end is what makes plans actionable --- it tells Claude exactly which agent handles each task and in what order.
@@ -594,10 +754,10 @@ The orchestration guide at the end is what makes plans actionable --- it tells C
 
 ```
 .claude/
-  rules/              ← Always-on constraints (8 rule files)
-  skills/             ← Auto-invoked workflows (r-code, databricks)
-  commands/           ← User-invoked actions (/r-project, /ct-lookup, /onboard)
-  agents/             ← Specialized roles (planner, programmer, reviewer)
+  rules/              ← Always-on constraints (9 rule files)
+  skills/             ← Auto-invoked workflows (r-code, databricks, ads-data, cohort-cascade)
+  commands/           ← User-invoked actions (/r-project, /ct-lookup, /onboard, /ads-qa-review)
+  agents/             ← Specialized roles (planner, programmer, reviewer, ADS QA reviewer)
   agent-memory/       ← Persistent memory for each agent
 R/                    ← Reusable function files (one function per file)
 tests/                ← testthat test files (test-<name>.R)
@@ -622,5 +782,6 @@ example-code/         ← Reference examples (Databricks connection patterns)
 | Plan a complex feature | Describe what you want to build |
 | Run QC on code | "Review the [file] I just wrote" |
 | Query Databricks | Mention the table or schema you need |
+| Run ADS QA review | `/ads-qa-review <branch-folder> "Reviewer Name"` |
 | Onboard a new team member | `/onboard` |
 | Check project standards | Ask any question about rules |

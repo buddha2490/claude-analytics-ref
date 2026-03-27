@@ -1,6 +1,6 @@
 # Clinical Programming with Claude Code
 
-A reference implementation showing how to configure Claude Code for automated clinical programming workflows in R. This repo demonstrates the full configuration system — rules, skills, commands, and agents — applied to pharmaceutical/regulatory data work.
+A reference implementation showing how to configure Claude Code for automated clinical programming workflows in R. Demonstrates the full configuration system — rules, skills, commands, and agents — applied to pharmaceutical/regulatory data work.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ A reference implementation showing how to configure Claude Code for automated cl
 1. **Clone and open:**
    ```bash
    git clone <repo-url>
-   cd claude-skills
+   cd claude-analytics-ref
    code .    # VS Code auto-launches Claude Code
    ```
 
@@ -26,16 +26,15 @@ A reference implementation showing how to configure Claude Code for automated cl
    ```
    /onboard
    ```
-   This walks you through everything — what commands are available, how the agents work, and what the rules enforce. Start here if you're new to Claude Code.
 
 ## Project Structure
 
 ```
 .claude/
-  rules/         Always-on project standards (8 files)
-  skills/        Auto-invoked workflows (r-code)
-  commands/      On-demand actions (/onboard, /ct-lookup, /r-project)
-  agents/        Specialized AI roles (planner, programmer, reviewer)
+  rules/         Always-on project standards (9 files)
+  skills/        Auto-invoked workflows (r-code, databricks, ads-data, cohort-cascade)
+  commands/      On-demand actions (/onboard, /ct-lookup, /r-project, /ads-qa-review)
+  agents/        Specialized AI roles (planner, programmer, reviewer, ADS QA reviewer)
 R/               Reusable functions (one per file, with roxygen2 docs)
 tests/           testthat test files (one per function)
 programs/        Analysis scripts, simulations, data pulls, SDTM mappings
@@ -45,34 +44,52 @@ plans/           Implementation plans from the feature-planner
 docs/            Strategy docs and specifications
 ```
 
-## Available Commands
+## Commands
 
 | Command | What it does |
 |---------|-------------|
 | `/onboard` | Interactive walkthrough for new team members |
 | `/ct-lookup` | Look up CDISC controlled terminology (e.g., `/ct-lookup VSTESTCD`) |
 | `/r-project` | Scaffold a new R project with renv and standard structure |
+| `/ads-qa-review` | Run AI-assisted QA review on a cloned ADS branch |
 
 ## Agents
 
-The project uses three agents in a pipeline that mirrors clinical programming QC:
+The project has two agent pipelines: one for clinical R programming and one for ADS branch QA.
 
+**Clinical programming pipeline:**
 ```
-feature-planner  →  r-clinical-programmer  →  code-reviewer
+feature-planner  →  r-clinical-programmer  →  clinical-code-reviewer
    (plan)              (implement)              (verify)
+```
+
+**ADS QA pipeline:**
+```
+/ads-qa-review  →  ads-qa-reviewer
+  (command)         (review report)
 ```
 
 | Agent | Model | Role |
 |-------|-------|------|
 | **feature-planner** | Opus | Reviews codebase, asks clarifying questions, writes implementation plans |
 | **r-clinical-programmer** | Sonnet | Writes R code, always executes before returning, follows plans |
-| **code-reviewer** | Sonnet | Independent QC — checks rules, runs tests, produces PASS/FAIL report |
+| **clinical-code-reviewer** | Sonnet | Independent QC for CDISC-regulated R code — checks rules, runs tests, produces PASS/FAIL report |
+| **ads-qa-reviewer** | Opus | Reviews ADS branches against Jira tickets — reads diffs, queries RAG, validates variable specs |
 
-**For complex work, always start with the planner.** Don't jump straight to code.
+## Skills
+
+Skills auto-invoke when the task type matches — no explicit command needed.
+
+| Skill | When it fires |
+|-------|--------------|
+| `r-code` | Any R code request — enforces the write → test → execute → validate workflow |
+| `databricks` | Databricks connections, queries, schema navigation |
+| `ads-data` | Pulling or subsetting ADS data via `get_ads()` |
+| `cohort-cascade` | Building exclusion criteria or patient attrition tables |
 
 ## Rules
 
-Rules are enforced automatically in every conversation. You don't need to memorize them — Claude knows them — but here's what's covered:
+Enforced automatically in every conversation.
 
 | Rule | What it enforces |
 |------|-----------------|
@@ -84,38 +101,11 @@ Rules are enforced automatically in every conversation. You don't need to memori
 | `data-safety` | No real patient data in code, no hardcoded credentials |
 | `git-conventions` | Branch naming, commit messages, PR descriptions |
 | `error-messages` | Standard patterns for `stop()`, `warning()`, `message()` |
-
-## How It Works
-
-Every conversation with Claude loads:
-
-1. **CLAUDE.md** — project orientation
-2. **All rules** — what standards apply
-3. **Relevant skill** — how to produce the output (e.g., the r-code skill auto-fires for R work)
-4. **Agent if spawned** — which role handles the work
-
-When you ask Claude to write a function:
-- Rules enforce style, packages, CDISC conventions
-- The r-code skill enforces the workflow: write function → write tests → execute both → report
-- No code is returned until it runs without errors
-
-## The Pipeline
-
-This project is building toward a 3-stage automated clinical programming pipeline:
-
-```
-Stage 1: Simulated Data    Stage 2: Data Pull      Stage 3: Full Automation
-─────────────────────      ──────────────────      ────────────────────────
-Generate CDISC-compliant   Pull raw variables      Generate R code that
-dummy datasets from        from Databricks into    transforms raw data into
-specs and data dictionary  intermediate datasets   final CDISC SDTM domains
-```
-
-All stages share the same downstream TFL code — switching from simulated to real data changes only the data source, not the analysis programs.
+| `ads-qa-review-standards` | Severity taxonomy, ADS-specific defect patterns, report format for ADS QA reviews |
 
 ## Contributing
 
 - Follow the git conventions in `.claude/rules/git-conventions.md`
 - Use the feature-planner for anything beyond a simple bug fix
-- Run the code-reviewer before submitting a PR
+- Run the clinical-code-reviewer before submitting a PR
 - All R code must be executed and tested before delivery

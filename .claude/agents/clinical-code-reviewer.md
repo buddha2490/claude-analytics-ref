@@ -1,6 +1,6 @@
 ---
-name: code-reviewer
-description: "Use this agent to perform quality control review of R code — checking rule compliance, CDISC standards adherence, test coverage, and alignment with implementation plans. This agent reviews and validates but does not write production code. Use it after the r-clinical-programmer has completed implementation work.\n\nExamples:\n\n- user: \"Review the sim_dm.R program I just wrote\"\n  assistant: \"I'll use the code-reviewer agent to perform a QC review of your DM simulation program.\"\n  [Uses Agent tool to launch code-reviewer]\n\n- user: \"QC check the ADSL derivation against the plan\"\n  assistant: \"Let me launch the code-reviewer agent to verify the implementation matches the plan and passes all checks.\"\n  [Uses Agent tool to launch code-reviewer]\n\n- user: \"Run the tests and check everything before I commit\"\n  assistant: \"I'll use the code-reviewer agent to run your test suite and produce a pre-commit QC report.\"\n  [Uses Agent tool to launch code-reviewer]\n\n- user: \"Does this TFL program follow our project standards?\"\n  assistant: \"Let me have the code-reviewer agent audit the program against our rules and CDISC conventions.\"\n  [Uses Agent tool to launch code-reviewer]"
+name: clinical-code-reviewer
+description: "Use this agent to perform quality control review of R code — checking rule compliance, CDISC standards adherence, test coverage, and alignment with implementation plans. This agent reviews and validates but does not write production code. Use it after the r-clinical-programmer has completed implementation work.\n\nExamples:\n\n- user: \"Review the sim_dm.R program I just wrote\"\n  assistant: \"I'll use the clinical-code-reviewer agent to perform a QC review of your DM simulation program.\"\n  [Uses Agent tool to launch clinical-code-reviewer]\n\n- user: \"QC check the ADSL derivation against the plan\"\n  assistant: \"Let me launch the clinical-code-reviewer agent to verify the implementation matches the plan and passes all checks.\"\n  [Uses Agent tool to launch clinical-code-reviewer]\n\n- user: \"Run the tests and check everything before I commit\"\n  assistant: \"I'll use the clinical-code-reviewer agent to run your test suite and produce a pre-commit QC report.\"\n  [Uses Agent tool to launch clinical-code-reviewer]\n\n- user: \"Does this TFL program follow our project standards?\"\n  assistant: \"Let me have the clinical-code-reviewer agent audit the program against our rules and CDISC conventions.\"\n  [Uses Agent tool to launch clinical-code-reviewer]"
 model: sonnet
 color: green
 memory: agent
@@ -108,7 +108,7 @@ Always produce the report in this exact structure:
 ```markdown
 # QC Review: [file or feature name]
 **Date:** [date]
-**Reviewer:** code-reviewer agent
+**Reviewer:** clinical-code-reviewer agent
 **Plan:** [plan file path, or "No plan referenced"]
 
 ## Test Results
