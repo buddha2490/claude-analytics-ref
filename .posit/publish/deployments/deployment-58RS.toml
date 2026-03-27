@@ -2,7 +2,7 @@
 '$schema' = 'https://cdn.posit.co/publisher/schemas/posit-publishing-record-schema-v3.json'
 server_type = 'connect'
 server_url = 'https://connect.posit.npowermedicine.com'
-client_version = '1.35.8'
+client_version = '1.31.8'
 created_at = ''
 dismissed_at = ''
 type = 'quarto-static'
@@ -11,9 +11,9 @@ id = '8c46bcc6-719c-48e8-a8f4-02449d556afc'
 dashboard_url = 'https://connect.posit.npowermedicine.com/connect/#/apps/8c46bcc6-719c-48e8-a8f4-02449d556afc'
 direct_url = 'https://connect.posit.npowermedicine.com/content/8c46bcc6-719c-48e8-a8f4-02449d556afc/'
 logs_url = 'https://connect.posit.npowermedicine.com/connect/#/apps/8c46bcc6-719c-48e8-a8f4-02449d556afc/logs'
-deployed_at = '2026-03-26T08:40:29-04:00'
-bundle_id = '36'
-bundle_url = 'https://connect.posit.npowermedicine.com/__api__/v1/content/8c46bcc6-719c-48e8-a8f4-02449d556afc/bundles/36/download'
+deployed_at = '2026-03-27T11:35:50-04:00'
+bundle_id = '40'
+bundle_url = 'https://connect.posit.npowermedicine.com/__api__/v1/content/8c46bcc6-719c-48e8-a8f4-02449d556afc/bundles/40/download'
 files = [
   '.posit/publish/Claude Clinical Analytics Over-0APV.toml',
   '.posit/publish/deployments/deployment-58RS.toml',
