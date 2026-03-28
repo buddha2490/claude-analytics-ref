@@ -34,7 +34,7 @@ options(download.file.extra = paste(
 ))
 
 
-conflict_prefer("filter", "dplyr", quiet = TRUE)
+conflicts_prefer(dplyr::filter, .quiet = TRUE)
 
 .get_cluster_id <- function(cluster_name) {
   response <- httr2::request(

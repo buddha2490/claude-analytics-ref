@@ -286,7 +286,7 @@ dm_xpt <- dm %>%
   xportr_type(dm_meta, domain = "DM")
 
 # Ensure output directory exists
-output_dir <- "cohort/output-data"
+output_dir <- "cohort/output-data/sdtm"
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
 # Write XPT
@@ -298,6 +298,6 @@ saveRDS(dm, file.path(output_dir, "dm.rds"))
 
 # --- Summary -----------------------------------------------------------------
 
-message("DM simulation complete: ", nrow(dm), " subjects written to cohort/output-data/dm.xpt")
+message("DM simulation complete: ", nrow(dm), " subjects written to cohort/output-data/sdtm/dm.xpt")
 message("DTHFL=Y: ", sum(dm$DTHFL == "Y", na.rm = TRUE), " subjects")
 message("BOR distribution:\n", paste(capture.output(table(dm$bor)), collapse = "\n"))

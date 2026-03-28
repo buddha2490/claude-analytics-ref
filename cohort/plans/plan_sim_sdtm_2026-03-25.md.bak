@@ -11,26 +11,27 @@
 ### Folder layout
 ```
 cohort/
-  sim_all.R            Master orchestrator — runs all domains in order, writes XPTs
-  sim_dm.R
-  sim_ex.R
-  sim_ec.R
-  sim_cm.R
-  sim_pr.R
-  sim_su.R
-  sim_ae.R
-  sim_ds.R
-  sim_ho.R
-  sim_mh.R
-  sim_ie.R
-  sim_bs.R
-  sim_lb.R
-  sim_vs.R
-  sim_qs.R
-  sim_tu.R
-  sim_tr.R
-  sim_rs.R
-  sim_sc.R
+  programs/
+    sim_all.R            Master orchestrator — runs all domains in order, writes XPTs
+    sim_dm.R
+    sim_ex.R
+    sim_ec.R
+    sim_cm.R
+    sim_pr.R
+    sim_su.R
+    sim_ae.R
+    sim_ds.R
+    sim_ho.R
+    sim_mh.R
+    sim_ie.R
+    sim_bs.R
+    sim_lb.R
+    sim_vs.R
+    sim_qs.R
+    sim_tu.R
+    sim_tr.R
+    sim_rs.R
+    sim_sc.R
   output-data/         All XPT files written here (create if not present)
     dm.xpt
     ex.xpt

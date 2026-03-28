@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>[#ADS-402] Expand medication_administration to Advent, BH, and MLH</title>
+    <meta http-equiv="Content-Type" Content="application/vnd.ms-word; charset=UTF-8">
+        <style type="text/css">
+
+.tableBorder, .grid
+{
+    background-color: #fff;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tableBorder td, .grid td
+{
+    vertical-align: top;
+    padding: 2px;
+    border: 1px solid #ccc;
+}
+
+.noPadding
+{
+    padding: 0 !important;
+}
+
+h3 .subText
+{
+    font-size: 60%;
+    font-weight: normal;
+}
+
+.tabLabel
+{
+    font-weight: bold;
+    border: 1px solid #ccc;
+    border-bottom:none;
+    padding: 2px;
+    display: inline;
+}
+
+td.blank
+{
+    padding: 0;
+    margin: 0;
+}
+
+.blank td
+{
+    border: none;
+}
+
+#descriptionArea
+{
+    margin: 0;
+    padding: 2px;
+    border: 1px solid #ccc;
+}
+
+hr
+{
+    border-top:1px solid #aaa;
+}
+
+hr.fullcontent
+{
+  height: 15px;
+  padding: 10px 0;
+  background: #fff url('https://n-power.atlassian.net/images/icons/hr.gif') no-repeat scroll center;
+}
+
+</style>
+
+</head>
+<body>
+
+<table class="tableBorder" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td bgcolor="#f0f0f0" width="100%" colspan="2" valign="top">
+                            <b><a id="parent_issue_summary" href="https://n-power.atlassian.net/browse/ADS-396">Medication Administration in ADS</a></b>
+                <span style="font-size: 9px">(<a id="parent_issue_key" href="https://n-power.atlassian.net/browse/ADS-396">ADS-396</a>)</span>
+                <h3 class="formtitle"><img src="https://n-power.atlassian.net/images/icons/link_out_bot.gif" width="16" height="16" />
+                        [ADS-402]&nbsp;<a href="https://n-power.atlassian.net/browse/ADS-402">Expand medication_administration to Advent, BH, and MLH</a>
+            <span class="subText">
+               Created: 18/Dec/25                   &nbsp;Updated: 26/Mar/26
+
+                                            </span>
+            </h3>
+        </td>
+    </tr>
+    <tr>
+        <td width="20%"><b>Status:</b></td>
+        <td width="80%">QC</td>
+    </tr>
+    <tr>
+        <td width="20%"><b>Project:</b></td>
+        <td width="80%"><a href="https://n-power.atlassian.net/secure/BrowseProject.jspa?id=11161">Analytical Datasets</a></td>
+    </tr>
+
+        <tr>
+            <td><b>Components:</b></td>
+            <td>
+                            None
+                </td>
+    </tr>
+    
+
+        <tr>
+            <td><b>Affects versions:</b></td>
+            <td>
+                            None
+                </td>
+    </tr>
+    
+
+        <tr>
+            <td><b>Fix versions:</b></td>
+            <td>
+                            None
+                </td>
+    </tr>
+    
+    
+            <td width="20%"><b>Parent:</b></td>
+        <td width="80%"><a href="https://n-power.atlassian.net/browse/ADS-396">Medication Administration in ADS</a></td>
+    </table>
+
+<br />
+<table class="grid" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td bgcolor="#f0f0f0" valign="top" width="20%">
+            <b>Type:</b>
+        </td>
+        <td bgcolor="#ffffff" valign="top"  width="30%" >
+            Task
+        </td>
+
+                    <td bgcolor="#f0f0f0">
+                <b>Priority:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top" nowrap>
+                Normal
+            </td>
+            </tr>
+    <tr>
+                        <td bgcolor="#f0f0f0" valign="top" width="20%">
+                <b>Reporter:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top"  width="30%" >
+                                        
+                
+        
+            <a class="user-hover" rel="712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                id="word_reporter_712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A374b4a23-0e33-4df7-90db-5a86c30463d1">
+                    Connor Sweetnam
+                </a>
+
+                            </td>
+        
+                    <td bgcolor="#f0f0f0" width="20%">
+                <b>Assignee:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top" nowrap  width="30%" >
+                                        
+                
+        
+            <a class="user-hover" rel="712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                id="word_assignee_712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A374b4a23-0e33-4df7-90db-5a86c30463d1">
+                    Connor Sweetnam
+                </a>
+
+                            </td>
+            </tr>
+    	<tr>
+		<td bgcolor="#f0f0f0" width="20%">
+			<b>Resolution:</b>
+		</td>
+		<td bgcolor="#ffffff" valign="top" width="30%" nowrap>
+            				Unresolved
+                    </td>
+                    <td bgcolor="#f0f0f0" width="20%">
+                <b>Votes:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top" width="30%" nowrap>
+                0
+            </td>
+        
+    </tr>
+    
+        <tr>
+        <td bgcolor="#f0f0f0" width="20%">
+            <b>Labels:</b>
+        </td>
+        <td id="labels-269557-value" class="value" bgcolor="#ffffff" valign="top" colspan="3" nowrap>
+                            None
+                    </td>
+    </tr>
+    
+    	<tr>
+        		<td bgcolor="#f0f0f0" width="20%"><b>Remaining Estimate:</b></td>
+        <td bgcolor="#ffffff" valign="top" nowrap width="80%" colspan="3">
+                            Not Specified
+            		</td>
+    </tr>
+    <tr>
+                <td bgcolor="#f0f0f0" width="20%"><b>Time Spent:</b></td>
+		<td bgcolor="#ffffff" valign="top" nowrap width="80%" colspan="3">
+                            Not Specified
+            		</td>
+	</tr>
+    <tr>
+                <td bgcolor="#f0f0f0" width="20%"><b>Original estimate:</b></td>
+		<td bgcolor="#ffffff" valign="top" nowrap width="80%" colspan="3">
+                            Not Specified
+            		</td>
+    </tr>
+    
+    </table>
+
+
+
+    <br />
+
+    	<table class="grid" cellpadding="0" cellspacing="0" border="0" width="100%">
+            
+
+        
+            <tr>
+            <td bgcolor="#f0f0f0" width="20%" valign="top">
+                <b>Issue links:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top" class="noPadding">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="blank">
+                                            <tr>
+                            <td colspan="4" bgcolor="#f0f0f0">
+                                <b>Blocks</b><br/>
+                            </td>
+                        </tr>
+                                    <tr>
+            <td>
+                is blocked by
+            </td>
+            <td>
+                <a href="https://n-power.atlassian.net/browse/ADS-400">
+                     <strike>ADS-400</strike>                 </a>
+            </td>
+            <td>
+                Expand MedicationRequest ingestion fo...
+            </td>
+            <td>
+                Done
+            </td>
+        </tr>
+            <tr>
+            <td>
+                is blocked by
+            </td>
+            <td>
+                <a href="https://n-power.atlassian.net/browse/ADS-401">
+                     <strike>ADS-401</strike>                 </a>
+            </td>
+            <td>
+                MedicationRequest ingestion for Advent
+            </td>
+            <td>
+                Done
+            </td>
+        </tr>
+            <tr>
+            <td>
+                is blocked by
+            </td>
+            <td>
+                <a href="https://n-power.atlassian.net/browse/ADS-405">
+                     <strike>ADS-405</strike>                 </a>
+            </td>
+            <td>
+                Route of administration normalization
+            </td>
+            <td>
+                Done
+            </td>
+        </tr>
+            <tr>
+            <td>
+                is blocked by
+            </td>
+            <td>
+                <a href="https://n-power.atlassian.net/browse/ADS-408">
+                     <strike>ADS-408</strike>                 </a>
+            </td>
+            <td>
+                Medication normalization
+            </td>
+            <td>
+                Done
+            </td>
+        </tr>
+                                                                            <tr>
+                            <td colspan="4" bgcolor="#f0f0f0">
+                                <b>Contains</b><br/>
+                            </td>
+                        </tr>
+                                    <tr>
+            <td>
+                has part
+            </td>
+            <td>
+                <a href="https://n-power.atlassian.net/browse/DE-276">
+                     <strike>DE-276</strike>                 </a>
+            </td>
+            <td>
+                Gold layer medications table development
+            </td>
+            <td>
+                Closed
+            </td>
+        </tr>
+                                                                    </table>
+            </td>
+        </tr>
+    
+
+
+    
+                        <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Sprint:</b></td>
+                <td id="customfield_10020-269557-value" class="value" bgcolor="#ffffff" width="80%">April 1 Release</td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Rank:</b></td>
+                <td id="customfield_10019-269557-value" class="value" bgcolor="#ffffff" width="80%">      0|r0poul:w
+  </td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Release Notes:</b></td>
+                <td id="customfield_11841-269557-value" class="value" bgcolor="#ffffff" width="80%">      <p>Structured medication administration data has been added to the <tt>medication_administration</tt> data frame for the remaining health systems. As a reminder:</p>
+
+<ul>
+	<li>When available, <tt>medication_administration</tt> contains the medication administration records from the EMR (<tt>admin_source = "structured"</tt>) or abstraction (<tt>admin_source = "ma"</tt>) for patients' systemic therapies (in <tt>systemic_therapy</tt>).</li>
+	<li>It does not contain medication administrations for patients without <tt>systemic_therapy</tt> data nor does it contain non-anticancer/antineoplastic medications - i.e., it is restricted to the administrations of systemic anticancer (antineoplastic) therapies for the patients with abstracted systemic therapies.</li>
+	<li>Medication administration records could not be found in structured data or abstraction for all patients nor for all abstracted therapies.</li>
+</ul>
+
+  </td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Code Review:</b></td>
+                <td id="customfield_12225-269557-value" class="value" bgcolor="#ffffff" width="80%"><div class="shorten" id="customfield_12225-field">
+                        <span class="tinylink">        <span class="user-hover" rel="ug:122d8429-4cb9-4247-8547-aa472f2bdbd8" id="multiuser_cf_ug:122d8429-4cb9-4247-8547-aa472f2bdbd8">Brian Carter</span></span>            </div>
+</td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Release Priority:</b></td>
+                <td id="customfield_12224-269557-value" class="value" bgcolor="#ffffff" width="80%">    High - required for customer need, blocker for future dev, bug
+</td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Data Review (migrated):</b></td>
+                <td id="customfield_12226-269557-value" class="value" bgcolor="#ffffff" width="80%"><div class="shorten" id="customfield_12226-field">
+                        <span class="tinylink">        <span class="user-hover" rel="b3a562d6-6e2a-4835-a18d-c160b27567ce" id="multiuser_cf_b3a562d6-6e2a-4835-a18d-c160b27567ce">Monika Izano</span></span>            </div>
+</td>
+            </tr>
+            </table>
+
+    <br/>
+
+    <table cellpadding="2" cellspacing="0" border="0" width="100%" align="center">
+    <tr>
+        <td bgcolor="#bbbbbb" width="1%" nowrap align="center">
+            &nbsp;<font color="#ffffff"><b>Description</b></font>&nbsp;
+        </td>
+        <td>&nbsp;</td>
+    </tr>
+    </table>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td id="descriptionArea">
+            <p>Once MedicationRequest data is available for all Enriched ADS patients for Advent, BH, and MLH, we need to create/expand the pipeline to get, clean, wrangle, and derive that data for the <tt>medication_administration</tt> concept in ADS (see <tt>ads/utilities/functions/med_admin.R</tt>). I anticipate MedicationRequest needing its own set of <tt>get_</tt> and <tt>clean_</tt> functions. The existing <tt>wrangle_med_admin</tt> and <tt>derive_med_admin</tt> can pipeline should be expanded for this new data source.</p>
+
+<p><b>Important notes</b></p>
+
+<ul>
+	<li><b><em>If not performed separately by ADS-409: Coverage - do this as soon as possible, even an imperfect number will be helpful</em></b>
+	<ul>
+		<li>Please check <tt>N of patients with matched admin</tt> / <tt>N of patients with systemic therapy</tt> overall, by health system, and by cohort</li>
+		<li>If we have low coverage (due to problems similar to Aurora’s), then we need to start game planning for this as soon as possible</li>
+	</ul>
+	</li>
+	<li>We need to differentiate administrations (and accompanying data) within MedicationRequest
+	<ul>
+		<li>Epic spec for API we are using: <a href="https://fhir.epic.com/Specifications?api=997" title="smart-link" class="external-link" rel="nofollow noreferrer">https://fhir.epic.com/Specifications?api=997</a></li>
+		<li>Official HL7 page for the spec: <a href="https://hl7.org/fhir/us/core/STU4/StructureDefinition-us-core-medicationrequest.html" title="smart-link" class="external-link" rel="nofollow noreferrer">https://hl7.org/fhir/us/core/STU4/StructureDefinition-us-core-medicationrequest.html</a>
+		<ul>
+			<li>Epic may have extended beyond this, but serves as a baseline</li>
+		</ul>
+		</li>
+		<li>It appears the “category” field may be able to filter it (“inpatient” or “outpatient”) - validate</li>
+	</ul>
+	</li>
+	<li>Querying for antineoplastic/anticancer drugs in MedicationRequest
+	<ul>
+		<li><tt>clean_therapy_name</tt> and <tt>split_therapy_name</tt> can probably be used as-is to create search regex for specific drugs in MedicationRequest tables</li>
+		<li>They were based on the <tt>systemic_therapy</tt> data, not the SPMD med admins per se, so the regexes they help create should work against a new source, but it is probably best to verify (see matching below)</li>
+	</ul>
+	</li>
+	<li>Therapy name normalization: SPMD’s med admins were normalized to the <tt>systemic_therapy.therapy_name</tt> values using <tt>ca.map_drugproduct</tt> (see <a href="https://docs.google.com/spreadsheets/d/17G3rTmy56ZX11vZAA6gXBP4yvrhNxbEjLYyAI122lB8/edit?gid=1293297947#gid=1293297947" title="smart-link" class="external-link" rel="nofollow noreferrer">https://docs.google.com/spreadsheets/d/17G3rTmy56ZX11vZAA6gXBP4yvrhNxbEjLYyAI122lB8/edit?gid=1293297947#gid=1293297947</a>). This normalization probably needs to be expanded for the MedicationRequest data, but it hopefully covers some of the values</li>
+	<li>Matching medication administrations. The algorithm for SPMD’s med admins is:
+	<ul>
+		<li>Med admin therapy matches one or more antineoplastics/anticancer meds for the cohort for one of the patients (query itself)</li>
+		<li>Admin occurs on/after diagnosis date or is undated (check proportion of undated admins, should be low)</li>
+		<li>Admin matches one or more of the patient’s specific systemic therapies (i.e., patient-specific therapy regex or exact match)</li>
+		<li>The normalization and regexes needed for SPMD’s med admins may work again here (as above for the query), but may need to be adjusted</li>
+	</ul>
+	</li>
+	<li>Potential new fields
+	<ul>
+		<li>Reason for discontinuation: poor population in SPMD’s med admins for Aurora/Ascension - if added validate Aurora/Ascension coverage</li>
+		<li>Number of cycles / dose /  quantity
+		<ul>
+			<li>Some of this exists in SPMD’s med admins table, but it is not part of standard abstraction and so was not added to the <tt>medication_administration</tt> table. If this has changed or Merck needs this, we should add it.</li>
+		</ul>
+		</li>
+	</ul>
+	</li>
+</ul>
+
+            <br/>
+        </td>
+    </tr>
+    </table>
+
+    <br/>
+
+    <table cellpadding="2" cellspacing="0" border="0" width="100%" align="center">
+    <tr>
+        <td bgcolor="#bbbbbb" width="1%" nowrap align="center">
+            &nbsp;<font color="#ffffff"><b>Comments</b></font>&nbsp;
+        </td>
+        <td>&nbsp;</td>
+    </tr>
+    </table>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" class="grid" style="margin: 0;">
+                <tr id="comment-header-359023"><td bgcolor="#f0f0f0">
+            Comment by  
+                                                    
+                
+        
+            <a class="user-hover" rel="712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                id="word_commented_712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A374b4a23-0e33-4df7-90db-5a86c30463d1">
+                    Connor Sweetnam
+                </a>
+
+                                        <font size="-2">
+            [
+                <font color="#336699">15/Jan/26</font>
+
+                            ]
+            </font>
+
+        </td></tr>
+        <tr id="comment-body-359023"><td bgcolor="#ffffff">
+            <p>In the ideal scenario, Advent ingestion is turned back on in time to include. If not, then clone this ticket, update the clone to be for Advent only, and update this ticket to be for MLH and BH only. Furthermore, the cloned ticket will likely need it’s own normalization tickets.</p>
+        </td></tr>
+                <tr id="comment-header-364707"><td bgcolor="#f0f0f0">
+            Comment by  
+                                                    
+                
+        
+            <a class="user-hover" rel="712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                id="word_commented_712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A374b4a23-0e33-4df7-90db-5a86c30463d1">
+                    Connor Sweetnam
+                </a>
+
+                                        <font size="-2">
+            [
+                <font color="#336699">16/Mar/26</font>
+
+                            ]
+            </font>
+
+        </td></tr>
+        <tr id="comment-body-364707"><td bgcolor="#ffffff">
+            <p>From Sammed today:</p>
+
+<p>Hi Connor, here is the test output of the medication tables with flat structure and one with doses separated out in a table. I'm continuing working on getting it standardized to IN/ MIN level. These tables are in process to be pushed to production. Let me know if you have any questions. </p>
+
+<p>Here is the PR that has the output tables: <a href="https://github.com/N-Power-Medicine/databricks_etl/pull/662" title="smart-link" class="external-link" rel="nofollow noreferrer">https://github.com/N-Power-Medicine/databricks_etl/pull/662</a> </p>
+
+<p>Jira ticket is here: <a href="https://n-power.atlassian.net/browse/DE-276" title="smart-link" class="external-link" rel="nofollow noreferrer">https://n-power.atlassian.net/browse/DE-276</a> </p>
+        </td></tr>
+                <tr id="comment-header-365708"><td bgcolor="#f0f0f0">
+            Comment by  
+                                                    
+                
+        
+            <a class="user-hover" rel="712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                id="word_commented_712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A374b4a23-0e33-4df7-90db-5a86c30463d1">
+                    Connor Sweetnam
+                </a>
+
+                                        <font size="-2">
+            [
+                <font color="#336699">24/Mar/26</font>
+
+                            ]
+            </font>
+
+        </td></tr>
+        <tr id="comment-body-365708"><td bgcolor="#ffffff">
+            <p>Questions for Sammed:</p>
+
+<ul>
+	<li>How flat is medications_flat?
+	<ul>
+		<li>dosage, ingredient, etc.</li>
+		<li>Drug and doses exploded</li>
+	</ul>
+	</li>
+	<li>What was used to map to rxcui?
+	<ul>
+		<li>Used development.test_ai_ms.rxnorm_kbtherapy_441_2506_unnested</li>
+		<li>Which column should I filter on?
+		<ul>
+			<li>ingredient code and ingredient code display</li>
+			<li>generic name and code seem to have multiple ingredients or precise ingredients (salt isomers)</li>
+		</ul>
+		</li>
+	</ul>
+	</li>
+	<li>Brad says to use spmd_sqa.maps.rxnorm_kbtherapy for now</li>
+</ul>
+
+        </td></tr>
+                <tr id="comment-header-365877"><td bgcolor="#f0f0f0">
+            Comment by  
+                                                    
+                
+        
+            <a class="user-hover" rel="712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                id="word_commented_712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A374b4a23-0e33-4df7-90db-5a86c30463d1">
+                    Connor Sweetnam
+                </a>
+
+                                        <font size="-2">
+            [
+                <font color="#336699">25/Mar/26</font>
+
+                            ]
+            </font>
+
+        </td></tr>
+        <tr id="comment-body-365877"><td bgcolor="#ffffff">
+            <p>Outstanding</p>
+
+<ul>
+	<li>Missing RxCUIs
+	<ul>
+		<li>Update report</li>
+	</ul>
+	</li>
+	<li><del>Data report</del>
+	<ul>
+		<li><del>Coverage</del></li>
+	</ul>
+	</li>
+	<li><del>NEWS + Release notes</del></li>
+</ul>
+
+        </td></tr>
+                <tr id="comment-header-366001"><td bgcolor="#f0f0f0">
+            Comment by  
+                                                    
+                
+        
+            <a class="user-hover" rel="712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                id="word_commented_712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A374b4a23-0e33-4df7-90db-5a86c30463d1">
+                    Connor Sweetnam
+                </a>
+
+                                        <font size="-2">
+            [
+                <font color="#336699">26/Mar/26</font>
+
+                            ]
+            </font>
+
+        </td></tr>
+        <tr id="comment-body-366001"><td bgcolor="#ffffff">
+            <p>Sammed working on using KB therapy to map med names missing rxcuis. When Nazar is back next week, we will work on reading the rxcuis from FHIR directly.</p>
+        </td></tr>
+                <tr id="comment-header-366012"><td bgcolor="#f0f0f0">
+            Comment by  
+                                                    
+                
+        
+            <a class="user-hover" rel="712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                id="word_commented_712020:374b4a23-0e33-4df7-90db-5a86c30463d1"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A374b4a23-0e33-4df7-90db-5a86c30463d1">
+                    Connor Sweetnam
+                </a>
+
+                                        <font size="-2">
+            [
+                <font color="#336699">26/Mar/26</font>
+
+                            ]
+            </font>
+
+        </td></tr>
+        <tr id="comment-body-366012"><td bgcolor="#ffffff">
+            <p>desc frequency order</p>
+
+<p>net new drugs</p>
+        </td></tr>
+            </table>
+Generated at Fri Mar 27 11:18:37 UTC 2026 by Brian Carter using Jira 1001.0.0-SNAPSHOT#100291-rev:aa788f054b3aa9723d0aca58424dc5943bb8a5fd.
+
+</body>
+</html>

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>[#ADS-375] Add last health system encounter date</title>
+    <meta http-equiv="Content-Type" Content="application/vnd.ms-word; charset=UTF-8">
+        <style type="text/css">
+
+.tableBorder, .grid
+{
+    background-color: #fff;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tableBorder td, .grid td
+{
+    vertical-align: top;
+    padding: 2px;
+    border: 1px solid #ccc;
+}
+
+.noPadding
+{
+    padding: 0 !important;
+}
+
+h3 .subText
+{
+    font-size: 60%;
+    font-weight: normal;
+}
+
+.tabLabel
+{
+    font-weight: bold;
+    border: 1px solid #ccc;
+    border-bottom:none;
+    padding: 2px;
+    display: inline;
+}
+
+td.blank
+{
+    padding: 0;
+    margin: 0;
+}
+
+.blank td
+{
+    border: none;
+}
+
+#descriptionArea
+{
+    margin: 0;
+    padding: 2px;
+    border: 1px solid #ccc;
+}
+
+hr
+{
+    border-top:1px solid #aaa;
+}
+
+hr.fullcontent
+{
+  height: 15px;
+  padding: 10px 0;
+  background: #fff url('https://n-power.atlassian.net/images/icons/hr.gif') no-repeat scroll center;
+}
+
+</style>
+
+</head>
+<body>
+
+<table class="tableBorder" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td bgcolor="#f0f0f0" width="100%" colspan="2" valign="top">
+                            <b><a id="parent_issue_summary" href="https://n-power.atlassian.net/browse/ADS-372">Inherit Abstraction post Subsequent Primary Changes</a></b>
+                <span style="font-size: 9px">(<a id="parent_issue_key" href="https://n-power.atlassian.net/browse/ADS-372">ADS-372</a>)</span>
+                <h3 class="formtitle"><img src="https://n-power.atlassian.net/images/icons/link_out_bot.gif" width="16" height="16" />
+                        [ADS-375]&nbsp;<a href="https://n-power.atlassian.net/browse/ADS-375">Add last health system encounter date</a>
+            <span class="subText">
+               Created: 10/Oct/25                   &nbsp;Updated: 20/Mar/26
+
+                                            </span>
+            </h3>
+        </td>
+    </tr>
+    <tr>
+        <td width="20%"><b>Status:</b></td>
+        <td width="80%">QC</td>
+    </tr>
+    <tr>
+        <td width="20%"><b>Project:</b></td>
+        <td width="80%"><a href="https://n-power.atlassian.net/secure/BrowseProject.jspa?id=11161">Analytical Datasets</a></td>
+    </tr>
+
+        <tr>
+            <td><b>Components:</b></td>
+            <td>
+                            None
+                </td>
+    </tr>
+    
+
+        <tr>
+            <td><b>Affects versions:</b></td>
+            <td>
+                            None
+                </td>
+    </tr>
+    
+
+        <tr>
+            <td><b>Fix versions:</b></td>
+            <td>
+                            None
+                </td>
+    </tr>
+    
+    
+            <td width="20%"><b>Parent:</b></td>
+        <td width="80%"><a href="https://n-power.atlassian.net/browse/ADS-372">Inherit Abstraction post Subsequent Primary Changes</a></td>
+    </table>
+
+<br />
+<table class="grid" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td bgcolor="#f0f0f0" valign="top" width="20%">
+            <b>Type:</b>
+        </td>
+        <td bgcolor="#ffffff" valign="top"  width="30%" >
+            Task
+        </td>
+
+                    <td bgcolor="#f0f0f0">
+                <b>Priority:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top" nowrap>
+                Normal
+            </td>
+            </tr>
+    <tr>
+                        <td bgcolor="#f0f0f0" valign="top" width="20%">
+                <b>Reporter:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top"  width="30%" >
+                                        
+                
+        
+            <a class="user-hover" rel="712020:75ed883e-1be1-4ae4-b866-8058b00676df"
+                id="word_reporter_712020:75ed883e-1be1-4ae4-b866-8058b00676df"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A75ed883e-1be1-4ae4-b866-8058b00676df">
+                    Kaitlyn Kane (Inactive)
+                </a>
+
+                            </td>
+        
+                    <td bgcolor="#f0f0f0" width="20%">
+                <b>Assignee:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top" nowrap  width="30%" >
+                                        
+                
+        
+            <a class="user-hover" rel="712020:90ff19f2-8b5e-4277-ae46-f117e454bd84"
+                id="word_assignee_712020:90ff19f2-8b5e-4277-ae46-f117e454bd84"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A90ff19f2-8b5e-4277-ae46-f117e454bd84">
+                    Rebecca Hodge
+                </a>
+
+                            </td>
+            </tr>
+    	<tr>
+		<td bgcolor="#f0f0f0" width="20%">
+			<b>Resolution:</b>
+		</td>
+		<td bgcolor="#ffffff" valign="top" width="30%" nowrap>
+            				Unresolved
+                    </td>
+                    <td bgcolor="#f0f0f0" width="20%">
+                <b>Votes:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top" width="30%" nowrap>
+                0
+            </td>
+        
+    </tr>
+    
+        <tr>
+        <td bgcolor="#f0f0f0" width="20%">
+            <b>Labels:</b>
+        </td>
+        <td id="labels-252513-value" class="value" bgcolor="#ffffff" valign="top" colspan="3" nowrap>
+                            None
+                    </td>
+    </tr>
+    
+    	<tr>
+        		<td bgcolor="#f0f0f0" width="20%"><b>Remaining Estimate:</b></td>
+        <td bgcolor="#ffffff" valign="top" nowrap width="80%" colspan="3">
+                            Not Specified
+            		</td>
+    </tr>
+    <tr>
+                <td bgcolor="#f0f0f0" width="20%"><b>Time Spent:</b></td>
+		<td bgcolor="#ffffff" valign="top" nowrap width="80%" colspan="3">
+                            Not Specified
+            		</td>
+	</tr>
+    <tr>
+                <td bgcolor="#f0f0f0" width="20%"><b>Original estimate:</b></td>
+		<td bgcolor="#ffffff" valign="top" nowrap width="80%" colspan="3">
+                            Not Specified
+            		</td>
+    </tr>
+    
+    </table>
+
+
+
+    <br />
+
+    	<table class="grid" cellpadding="0" cellspacing="0" border="0" width="100%">
+            
+
+                <tr>
+            <td bgcolor="#f0f0f0" width=20% valign=top>
+                <b>Attachments:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top">
+                                    <img src="https://n-power.atlassian.net/images/icons/attach/image.gif" height="16" width="16" border="0" alt="PNG File">
+                    image-20260129-233221.png &nbsp;&nbsp;&nbsp;
+                                    <img src="https://n-power.atlassian.net/images/icons/attach/image.gif" height="16" width="16" border="0" alt="PNG File">
+                    image-20260129-233313.png &nbsp;&nbsp;&nbsp;
+                                    <img src="https://n-power.atlassian.net/images/icons/attach/image.gif" height="16" width="16" border="0" alt="PNG File">
+                    image-20260129-233100.png &nbsp;&nbsp;&nbsp;
+                                    <img src="https://n-power.atlassian.net/images/icons/attach/image.gif" height="16" width="16" border="0" alt="PNG File">
+                    image-20260129-233240.png &nbsp;&nbsp;&nbsp;
+                            </td>
+        </tr>
+        
+            <tr>
+            <td bgcolor="#f0f0f0" width="20%" valign="top">
+                <b>Issue links:</b>
+            </td>
+            <td bgcolor="#ffffff" valign="top" class="noPadding">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" class="blank">
+                                            <tr>
+                            <td colspan="4" bgcolor="#f0f0f0">
+                                <b>Blocks</b><br/>
+                            </td>
+                        </tr>
+                                                                <tr>
+            <td>
+                blocks
+            </td>
+            <td>
+                <a href="https://n-power.atlassian.net/browse/ADS-371">
+                     ADS-371                 </a>
+            </td>
+            <td>
+                Add suggested censor date
+            </td>
+            <td>
+                QC
+            </td>
+        </tr>
+                                        </table>
+            </td>
+        </tr>
+    
+
+
+    
+                        <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Sprint:</b></td>
+                <td id="customfield_10020-252513-value" class="value" bgcolor="#ffffff" width="80%">April 1 Release</td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Rank:</b></td>
+                <td id="customfield_10019-252513-value" class="value" bgcolor="#ffffff" width="80%">      0|r0poul:y
+  </td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Release Notes:</b></td>
+                <td id="customfield_11841-252513-value" class="value" bgcolor="#ffffff" width="80%">      <p>In December 2025, the abstraction team added a new variable to capture the date of a patient's last oncology-specific healthcare. 
+    <span class="jira-issue-macro" data-jira-key="ADS-375" >
+                <a href="https://n-power.atlassian.net/browse/ADS-375" class="jira-issue-macro-key issue-link"  title="Add last health system encounter date" >
+            <img class="icon" src="https://n-power.atlassian.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10321?size=medium" />
+            ADS-375
+        </a>
+                                                    <span class="aui-lozenge aui-lozenge-subtle aui-lozenge-current jira-macro-single-issue-export-pdf">QC</span>
+            </span>
+ involved bringing in this new variable, which required minor tweaking to ensure patient rows were also prioritized to be kept if they had values for this new variable too. The final variable added to the enriched ADS cohort was last_oncology_encounter_date; last_abstraction_date was only very minimally impacted (n&lt;10 changes across the 4 cohorts). The internal variables last_hs_interaction_abstracted_date and last_hs_interaction_structured_date were kept internal and were also only minimally impacted. </p>
+  </td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Code Review:</b></td>
+                <td id="customfield_12225-252513-value" class="value" bgcolor="#ffffff" width="80%"><div class="shorten" id="customfield_12225-field">
+                        <span class="tinylink">        <span class="user-hover" rel="ug:122d8429-4cb9-4247-8547-aa472f2bdbd8" id="multiuser_cf_ug:122d8429-4cb9-4247-8547-aa472f2bdbd8">Brian Carter</span></span>            </div>
+</td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Release Priority:</b></td>
+                <td id="customfield_12224-252513-value" class="value" bgcolor="#ffffff" width="80%">    High - required for customer need, blocker for future dev, bug
+</td>
+            </tr>
+                                <tr>
+                <td bgcolor="#f0f0f0" width="20%" valign="top"><b>Data Review (migrated):</b></td>
+                <td id="customfield_12226-252513-value" class="value" bgcolor="#ffffff" width="80%"><div class="shorten" id="customfield_12226-field">
+                        <span class="tinylink">        <span class="user-hover" rel="b3a562d6-6e2a-4835-a18d-c160b27567ce" id="multiuser_cf_b3a562d6-6e2a-4835-a18d-c160b27567ce">Monika Izano</span></span>            </div>
+</td>
+            </tr>
+            </table>
+
+    <br/>
+
+    <table cellpadding="2" cellspacing="0" border="0" width="100%" align="center">
+    <tr>
+        <td bgcolor="#bbbbbb" width="1%" nowrap align="center">
+            &nbsp;<font color="#ffffff"><b>Description</b></font>&nbsp;
+        </td>
+        <td>&nbsp;</td>
+    </tr>
+    </table>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td id="descriptionArea">
+            <p>The date of last contact from OpenClinica is the last known alive status from any source, including outside of the EMR or health system contact - could be a variety of sources and is pre-populated from registry. This is a true vital status date and indicator - it may sometimes be the same as the last health system contact, but is NOT collected as such.</p>
+
+<p>We have asked abstraction to create a new variable to represent the true last health system contact to use as the appropriate censor point for a patient’s record for clinical endpoints (<a href="https://n-power.atlassian.net/browse/EDF-56" title="smart-link" class="external-link" rel="nofollow noreferrer">https://n-power.atlassian.net/browse/EDF-56</a> ). </p>
+
+
+
+<p>This ticket is to implement as a data element in the ADS  and to use in <a href="https://n-power.atlassian.net/browse/ADS-371" title="smart-link" class="external-link" rel="nofollow noreferrer">https://n-power.atlassian.net/browse/ADS-371</a> </p>
+            <br/>
+        </td>
+    </tr>
+    </table>
+
+    <br/>
+
+    <table cellpadding="2" cellspacing="0" border="0" width="100%" align="center">
+    <tr>
+        <td bgcolor="#bbbbbb" width="1%" nowrap align="center">
+            &nbsp;<font color="#ffffff"><b>Comments</b></font>&nbsp;
+        </td>
+        <td>&nbsp;</td>
+    </tr>
+    </table>
+
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" class="grid" style="margin: 0;">
+                <tr id="comment-header-357880"><td bgcolor="#f0f0f0">
+            Comment by  
+                                                    
+                
+        
+            <a class="user-hover" rel="712020:75ed883e-1be1-4ae4-b866-8058b00676df"
+                id="word_commented_712020:75ed883e-1be1-4ae4-b866-8058b00676df"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A75ed883e-1be1-4ae4-b866-8058b00676df">
+                    Kaitlyn Kane (Inactive)
+                </a>
+
+                                        <font size="-2">
+            [
+                <font color="#336699">15/Dec/25</font>
+
+                            ]
+            </font>
+
+        </td></tr>
+        <tr id="comment-body-357880"><td bgcolor="#ffffff">
+            <p>This field is now in production and will be ready for development with the next FDR</p>
+        </td></tr>
+                <tr id="comment-header-360061"><td bgcolor="#f0f0f0">
+            Comment by  
+                                                    
+                
+        
+            <a class="user-hover" rel="712020:75ed883e-1be1-4ae4-b866-8058b00676df"
+                id="word_commented_712020:75ed883e-1be1-4ae4-b866-8058b00676df"
+                href="https://n-power.atlassian.net/secure/ViewProfile.jspa?accountId=712020%3A75ed883e-1be1-4ae4-b866-8058b00676df">
+                    Kaitlyn Kane (Inactive)
+                </a>
+
+                                        <font size="-2">
+            [
+                <font color="#336699">29/Jan/26</font>
+
+                            ]
+            </font>
+
+        </td></tr>
+        <tr id="comment-body-360061"><td bgcolor="#ffffff">
+            <p>Abbreviated EDF ticket details for context in case not viewable by all </p>
+
+<p>Definition doc forwarded to ODS team: <a href="https://docs.google.com/document/d/1pv8AEst92RNy2XXAAVyDVsf5CZ3MytKt-7DCqxab-bM/edit?usp=sharing" title="smart-link" class="external-link" rel="nofollow noreferrer">https://docs.google.com/document/d/1pv8AEst92RNy2XXAAVyDVsf5CZ3MytKt-7DCqxab-bM/edit?usp=sharing</a> </p>
+
+<p><span class="image-wrap" style=""><img src="https://n-power.atlassian.net/rest/api/3/attachment/content/62826" alt="image-20260129-233100.png" width="598" style="border: 0px solid black" /></span></p>
+
+<p><span class="image-wrap" style=""><img src="https://n-power.atlassian.net/rest/api/3/attachment/content/62824" alt="image-20260129-233221.png" width="598" style="border: 0px solid black" /></span></p>
+
+<p><span class="image-wrap" style=""><img src="https://n-power.atlassian.net/rest/api/3/attachment/content/62827" alt="image-20260129-233240.png" width="598" style="border: 0px solid black" /></span></p>
+
+<p><span class="image-wrap" style=""><img src="https://n-power.atlassian.net/rest/api/3/attachment/content/62825" alt="image-20260129-233313.png" width="598" style="border: 0px solid black" /></span></p>
+        </td></tr>
+            </table>
+Generated at Thu Mar 26 14:52:06 UTC 2026 by Brian Carter using Jira 1001.0.0-SNAPSHOT#100291-rev:ed54123cdfbfc766e974eb578de28bbb57398217.
+
+</body>
+</html>
