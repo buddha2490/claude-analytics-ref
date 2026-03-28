@@ -1,6 +1,7 @@
 #!/bin/bash
 # Implementation for /sync-claude command
 # Syncs .claude directory across all branches, keeping newest versions
+# Compatible with bash 3.2+ (macOS default)
 
 set -e  # Exit on error
 
@@ -16,102 +17,102 @@ echo -e "${BLUE}🔄 Syncing .claude across all branches...${NC}\n"
 ORIGINAL_BRANCH=$(git branch --show-current)
 echo "Current branch: $ORIGINAL_BRANCH"
 
-# Get all branches (local only, exclude current)
-BRANCHES=($(git branch --format='%(refname:short)' | grep -v '^\*'))
+# Get all local branches
+BRANCHES=($(git branch --format='%(refname:short)'))
 echo -e "Branches to sync: ${BRANCHES[*]}\n"
 
-# Create temporary directory for tracking file versions
+# Create temporary directory for tracking
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf $TEMP_DIR" EXIT
 
-# Function to get last commit timestamp for a file on a branch
-get_file_timestamp() {
-    local branch=$1
-    local file=$2
-    git log -1 --format=%ct "$branch" -- "$file" 2>/dev/null || echo "0"
-}
+# File to track newest versions: format is "filepath|branch|timestamp"
+NEWEST_FILE="$TEMP_DIR/newest_versions.txt"
+touch "$NEWEST_FILE"
+
+echo "Scanning .claude files across branches..."
 
 # Scan all branches and collect .claude files with their timestamps
-echo "Scanning .claude files across branches..."
-declare -A FILE_NEWEST_BRANCH
-declare -A FILE_NEWEST_TIME
-
-for branch in "${BRANCHES[@]}" "$ORIGINAL_BRANCH"; do
+for branch in "${BRANCHES[@]}"; do
     # Get list of .claude files on this branch
-    files=$(git ls-tree -r --name-only "$branch" .claude/ 2>/dev/null || echo "")
+    git ls-tree -r --name-only "$branch" .claude/ 2>/dev/null | while read -r file; do
+        # Get last commit timestamp for this file on this branch
+        timestamp=$(git log -1 --format=%ct "$branch" -- "$file" 2>/dev/null || echo "0")
 
-    for file in $files; do
-        timestamp=$(get_file_timestamp "$branch" "$file")
+        # Check if we've seen this file before
+        if grep -q "^${file}|" "$NEWEST_FILE"; then
+            # Get current newest timestamp
+            current_newest=$(grep "^${file}|" "$NEWEST_FILE" | cut -d'|' -f3)
 
-        # If this is the first time seeing this file, or if this version is newer
-        if [[ ! ${FILE_NEWEST_TIME[$file]+_} ]] || [[ $timestamp -gt ${FILE_NEWEST_TIME[$file]} ]]; then
-            FILE_NEWEST_BRANCH[$file]=$branch
-            FILE_NEWEST_TIME[$file]=$timestamp
+            if [[ $timestamp -gt $current_newest ]]; then
+                # This version is newer, replace it
+                grep -v "^${file}|" "$NEWEST_FILE" > "$TEMP_DIR/tmp" || true
+                echo "${file}|${branch}|${timestamp}" >> "$TEMP_DIR/tmp"
+                mv "$TEMP_DIR/tmp" "$NEWEST_FILE"
+            fi
+        else
+            # First time seeing this file
+            echo "${file}|${branch}|${timestamp}" >> "$NEWEST_FILE"
         fi
     done
 done
 
-echo -e "Found ${#FILE_NEWEST_BRANCH[@]} unique .claude files\n"
+# Count unique files
+file_count=$(wc -l < "$NEWEST_FILE" | tr -d ' ')
+echo -e "Found $file_count unique .claude files\n"
 
 # For each branch, determine what needs updating
-declare -A BRANCH_UPDATES
+changes_needed=0
 
-for branch in "${BRANCHES[@]}" "$ORIGINAL_BRANCH"; do
+for branch in "${BRANCHES[@]}"; do
     updates=0
-    for file in "${!FILE_NEWEST_BRANCH[@]}"; do
-        newest_branch=${FILE_NEWEST_BRANCH[$file]}
+    update_list="$TEMP_DIR/updates_${branch}.txt"
+    touch "$update_list"
 
+    while IFS='|' read -r file newest_branch newest_timestamp; do
         # Skip if this branch already has the newest version
         if [[ "$newest_branch" == "$branch" ]]; then
             continue
         fi
 
-        # Check if file exists on this branch
-        current_timestamp=$(get_file_timestamp "$branch" "$file")
-        newest_timestamp=${FILE_NEWEST_TIME[$file]}
+        # Get current timestamp on this branch
+        current_timestamp=$(git log -1 --format=%ct "$branch" -- "$file" 2>/dev/null || echo "0")
 
         if [[ $current_timestamp -lt $newest_timestamp ]]; then
-            ((updates++))
+            echo "${file}|${newest_branch}" >> "$update_list"
+            ((updates++)) || true
         fi
-    done
+    done < "$NEWEST_FILE"
 
     if [[ $updates -gt 0 ]]; then
-        BRANCH_UPDATES[$branch]=$updates
+        echo "$branch|$updates" >> "$TEMP_DIR/branch_updates.txt"
+        ((changes_needed++)) || true
     fi
 done
 
 # Report changes to apply
-if [[ ${#BRANCH_UPDATES[@]} -eq 0 ]]; then
+if [[ $changes_needed -eq 0 ]]; then
     echo -e "${GREEN}✅ All branches are already in sync!${NC}"
     exit 0
 fi
 
 echo -e "${YELLOW}Changes to apply:${NC}"
-for branch in "${!BRANCH_UPDATES[@]}"; do
-    echo "  $branch: ${BRANCH_UPDATES[$branch]} file(s) to update"
-done
+while IFS='|' read -r branch updates; do
+    echo "  $branch: $updates file(s) to update"
+done < "$TEMP_DIR/branch_updates.txt"
 echo ""
 
 # Apply updates to each branch
-for branch in "${!BRANCH_UPDATES[@]}"; do
+while IFS='|' read -r branch updates; do
     echo -ne "Syncing $branch... "
 
     git checkout "$branch" -q
 
-    # Copy newest version of each file
-    for file in "${!FILE_NEWEST_BRANCH[@]}"; do
-        newest_branch=${FILE_NEWEST_BRANCH[$file]}
-
-        if [[ "$newest_branch" != "$branch" ]]; then
-            current_timestamp=$(get_file_timestamp "$branch" "$file")
-            newest_timestamp=${FILE_NEWEST_TIME[$file]}
-
-            if [[ $current_timestamp -lt $newest_timestamp ]]; then
-                # Copy the newest version
-                git checkout "$newest_branch" -- "$file" 2>/dev/null || true
-            fi
-        fi
-    done
+    # Apply each update
+    update_list="$TEMP_DIR/updates_${branch}.txt"
+    while IFS='|' read -r file source_branch; do
+        # Copy the newest version from source_branch
+        git checkout "$source_branch" -- "$file" 2>/dev/null || true
+    done < "$update_list"
 
     # Check if there are changes to commit
     if [[ -n $(git status --porcelain .claude/) ]]; then
@@ -121,7 +122,7 @@ for branch in "${!BRANCH_UPDATES[@]}"; do
     else
         echo -e "${BLUE}(no changes)${NC}"
     fi
-done
+done < "$TEMP_DIR/branch_updates.txt"
 
 # Return to original branch
 git checkout "$ORIGINAL_BRANCH" -q
