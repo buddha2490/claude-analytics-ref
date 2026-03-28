@@ -4,7 +4,7 @@ library(dplyr)
 library(stringr)
 
 # Source the function
-source("R/validate_data_contract.R")
+source("../R/validate_data_contract.R")
 
 test_that("validate_data_contract validates inputs correctly", {
   expect_error(

@@ -3,7 +3,7 @@ library(dplyr)
 
 # Source function - assumes working directory is project root
 if (!exists("validate_referential_integrity")) {
-  source("R/validate_referential_integrity.R")
+  source("../R/validate_referential_integrity.R")
 }
 
 test_that("validate_referential_integrity detects all orphan records", {

@@ -3,7 +3,7 @@ library(dplyr)
 
 # Source function - assumes working directory is project root
 if (!exists("validate_derived_variables")) {
-  source("R/validate_derived_variables.R")
+  source("../R/validate_derived_variables.R")
 }
 
 test_that("validate_derived_variables detects cardinality violations for one_per_subject", {

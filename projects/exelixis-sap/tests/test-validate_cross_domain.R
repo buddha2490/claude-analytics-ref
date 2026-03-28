@@ -3,7 +3,7 @@ library(dplyr)
 
 # Source function - assumes working directory is project root
 if (!exists("validate_cross_domain")) {
-  source("R/validate_cross_domain.R")
+  source("../R/validate_cross_domain.R")
 }
 
 test_that("validate_cross_domain detects DOR/responder mismatch - extra DOR", {

@@ -29,7 +29,7 @@ validation_result <- system2(
     library(haven)
     library(dplyr)
     library(stringr)
-    source('R/validate_data_contract.R')
+    source('projects/exelixis-sap/R/validate_data_contract.R')
     result <- validate_data_contract(
       plan_path = 'projects/exelixis-sap/plans/plan_adam_automation_2026-03-27.md',
       sdtm_path = 'projects/exelixis-sap/output-data/sdtm'
@@ -74,7 +74,7 @@ for (domain in source_domains) {
       library(haven)
       library(dplyr)
       library(stringr)
-      source('R/profile_data.R')
+      source('projects/exelixis-sap/R/profile_data.R')
       profile_data(
         domain = '%s',
         data_path = 'projects/exelixis-sap/output-data/sdtm',
@@ -145,10 +145,10 @@ spawn_r_clinical_programmer(
 message("=== BETWEEN-WAVE: Validation Checks (Wave ", wave_num, ") ===")
 
 # Source validation functions
-source("R/validate_referential_integrity.R")
-source("R/validate_cross_domain.R")
-source("R/validate_date_consistency.R")
-source("R/validate_derived_variables.R")
+source("projects/exelixis-sap/R/validate_referential_integrity.R")
+source("projects/exelixis-sap/R/validate_cross_domain.R")
+source("projects/exelixis-sap/R/validate_date_consistency.R")
+source("projects/exelixis-sap/R/validate_derived_variables.R")
 
 # Source study-specific orchestration
 source("projects/exelixis-sap/programs/between_wave_checks.R")

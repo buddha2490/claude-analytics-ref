@@ -43,7 +43,7 @@ Auto-generates frequency tables and cross-tabulations for SDTM domain variables 
 
 2. **Call R function:**
    ```r
-   source("R/profile_data.R")
+   source("projects/exelixis-sap/R/profile_data.R")
 
    result <- profile_data(
      domain = "<DOMAIN>",

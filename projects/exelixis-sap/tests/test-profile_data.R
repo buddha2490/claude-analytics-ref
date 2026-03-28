@@ -7,7 +7,7 @@ library(stringr)
 
 # Source function - assumes working directory is project root
 if (!exists("profile_data")) {
-  source("R/profile_data.R")
+  source("../R/profile_data.R")
 }
 
 # --- Setup: Create test data ---

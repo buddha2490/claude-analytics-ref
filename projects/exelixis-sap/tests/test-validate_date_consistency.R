@@ -3,7 +3,7 @@ library(dplyr)
 
 # Source function - assumes working directory is project root
 if (!exists("validate_date_consistency")) {
-  source("R/validate_date_consistency.R")
+  source("../R/validate_date_consistency.R")
 }
 
 test_that("validate_date_consistency detects TRTEMFL violations", {
