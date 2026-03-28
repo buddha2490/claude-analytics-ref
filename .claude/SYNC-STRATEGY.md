@@ -4,7 +4,7 @@ The `.claude` directory contains all Claude Code configuration (rules, skills, c
 
 ## Current Status
 
-All branches (`main`, `cohort`, `qa-reviews`) currently have identical `.claude` directories as of commit `66d0290`.
+All branches (`main`, `exelixis-sap`, `qa-reviews`) have synchronized `.claude` directories maintained by the `/sync-claude` command.
 
 ## Keeping Branches in Sync
 
@@ -19,8 +19,8 @@ git checkout main
 git add .claude/
 git commit -m "[CONFIG] Update <rule/skill/agent> description"
 
-# Apply the same change to cohort
-git checkout cohort
+# Apply the same change to exelixis-sap
+git checkout exelixis-sap
 git cherry-pick <commit-hash>
 
 # Apply the same change to qa-reviews
@@ -32,8 +32,8 @@ git cherry-pick <commit-hash>
 
 ```bash
 # After making several .claude changes on main
-git checkout cohort
-git merge main --no-ff -m "Merge main .claude updates into cohort"
+git checkout exelixis-sap
+git merge main --no-ff -m "Merge main .claude updates into exelixis-sap"
 
 git checkout qa-reviews
 git merge main --no-ff -m "Merge main .claude updates into qa-reviews"
@@ -42,8 +42,8 @@ git merge main --no-ff -m "Merge main .claude updates into qa-reviews"
 ### Option 3: Subtree merge (Most surgical)
 
 ```bash
-# Merge ONLY .claude directory from main into cohort
-git checkout cohort
+# Merge ONLY .claude directory from main into exelixis-sap
+git checkout exelixis-sap
 git checkout main -- .claude/
 git commit -m "[CONFIG] Sync .claude from main"
 
@@ -65,7 +65,7 @@ Check if branches are in sync:
 
 ```bash
 # Should show no differences
-git diff main cohort -- .claude/
+git diff main exelixis-sap -- .claude/
 git diff main qa-reviews -- .claude/
 ```
 
@@ -76,13 +76,13 @@ git diff main qa-reviews -- .claude/
 ├── agents/          # 4 agents (planner, programmer, reviewer, ads-qa-reviewer)
 ├── commands/        # 4 commands (r-project, onboard, ct-lookup, ads-qa-review)
 ├── rules/           # 9 rules (style, CDISC, git, data safety, etc.)
-├── skills/          # 4 skills (r-code, databricks, ads-data, cohort-cascade)
+├── skills/          # 4 skills (r-code, databricks, ads-data, exelixis-sap-cascade)
 └── settings.local.json
 ```
 
 ## What If You Create New .claude Files on a Branch?
 
-If you create new files on a branch other than main (e.g., `cohort` or `qa-reviews`):
+If you create new files on a branch other than main (e.g., `exelixis-sap` or `qa-reviews`):
 
 1. **The file only exists on that branch** - other branches won't see it
 2. **Claude Code recognizes it immediately** - the command/skill/agent is available when on that branch
@@ -96,13 +96,13 @@ If you create new files on a branch other than main (e.g., `cohort` or `qa-revie
 ```bash
 # Bring the file from feature branch to main
 git checkout main
-git checkout cohort -- .claude/path/to/new-file.md
+git checkout exelixis-sap -- .claude/path/to/new-file.md
 git add .claude/path/to/new-file.md
-git commit -m "[CONFIG] Promote new-file from cohort"
+git commit -m "[CONFIG] Promote new-file from exelixis-sap"
 
 # Sync to other branches
 git checkout qa-reviews && git cherry-pick main
-git checkout cohort && git cherry-pick main
+git checkout exelixis-sap && git cherry-pick main
 git checkout main
 ```
 
@@ -113,8 +113,8 @@ git checkout main
 
 ### Example: Branch-Specific Command
 
-If you create `/cohort-report` on the `cohort` branch that only makes sense in that context:
-1. Create it on `cohort` branch
+If you create `/exelixis-sap-report` on the `exelixis-sap` branch that only makes sense in that context:
+1. Create it on `exelixis-sap` branch
 2. Commit it
 3. Leave it there - don't sync to other branches
 4. Document it below
