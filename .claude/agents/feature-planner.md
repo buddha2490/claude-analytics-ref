@@ -89,7 +89,7 @@ Task breakdown for available agents:
 | Task | Agent | Priority | Dependencies | Description |
 |------|-------|----------|--------------|-------------|
 | ... | r-clinical-programmer | P1 | None | ... |
-| ... | code-reviewer | P2 | Task 1 | ... |
+| ... | clinical-code-reviewer | P2 | Task 1 | ... |
 ```
 
 ## Agent Roster
@@ -99,9 +99,9 @@ Use these exact agent names in orchestration guides:
 | Agent | Model | Role | Use for |
 |-------|-------|------|---------|
 | `r-clinical-programmer` | Sonnet | Implementer | Writing R code, functions, tests, scripts. Always executes before returning. |
-| `code-reviewer` | Sonnet | QC reviewer | Independent verification against plan and rules. Runs tests, produces QC report. Does not write code. |
+| `clinical-code-reviewer` | Sonnet | QC reviewer | Independent verification against plan and rules. Runs tests, produces QC report. Does not write code. |
 
-**Standard sequence:** r-clinical-programmer implements → code-reviewer verifies.
+**Standard sequence:** r-clinical-programmer implements → clinical-code-reviewer verifies.
 
 ## Available Skills and Commands
 
