@@ -1,0 +1,188 @@
+questions:
+- id: R1
+  text: Which Charlson Comorbidity Index weights should be used?
+  status: resolved
+  resolution: Use Quan 2011 updated weights (not original 1987 Charlson)
+  rationale: More widely validated for administrative/claims data; better ICD-10 mapping.
+    Modern EHR-based studies use ICD-10 codes; Quan 2011 provides validated ICD-10
+    mappings.
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adsl.R
+    lines:
+    - 345
+    - 360
+    marker: 'REVISIT: Quan 2011 weights used per R1'
+  resolved_by: feature-planner
+  resolved_date: '2026-03-27'
+  revisit_trigger: Final analysis; if clinical team specifies 1987 weights in SAP
+    revision
+- id: R2
+  text: CCI scoring source — Derive from ICD-10 codes or MedDRA preferred terms in
+    MH.MHTERM?
+  status: resolved
+  resolution: Derive from MH.MHTERM (MedDRA/verbatim terms)
+  rationale: ICD-10 codes not available in SDTM MH domain for this study
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adsl.R
+    lines:
+    - 340
+    - 365
+    marker: 'REVISIT: CCI derived from MH.MHTERM per R2'
+  resolved_by: feature-planner
+  resolved_date: '2026-03-27'
+  revisit_trigger: If ICD-10 mapped terms become available in MH.MHTERM or MHBODSYS
+- id: R3
+  text: Does RECIST 1.1 BOR require confirmed response?
+  status: resolved
+  resolution: Yes, both CR and PR require confirmation with ≥28-day interval per RECIST
+    1.1
+  rationale: 'SAP explicitly states: ''minimum interval between 2 assessments should
+    be no less than 4 weeks''. User confirmed on 2026-03-27 to follow SAP over earlier
+    draft decision.'
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adrs.R
+    lines:
+    - 156
+    - 178
+    marker: 'REVISIT: Confirmed response per SAP (≥28-day interval). See R3'
+  resolved_by: feature-planner
+  resolved_date: '2026-03-27'
+  revisit_trigger: SAP revision; if clinical team explicitly downgrades to single
+    best assessment
+- id: R4
+  text: ADTTE month conversion factor — days/30.4375, days/30, or other?
+  status: resolved
+  resolution: days / 30.4375
+  rationale: SAP explicitly uses this formula for all three TTE parameters (PFS, OS,
+    DOR)
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adtte.R
+    lines:
+    - 234
+    - 240
+    marker: 'REVISIT: Month conversion = days/30.4375 per R4'
+  resolved_by: feature-planner
+  resolved_date: '2026-03-27'
+  revisit_trigger: SAP revision only
+- id: R5
+  text: NPM LoT Algorithm — NSCLC-specific parameters (window, gap, switching)
+  status: resolved
+  resolution: Window = 45 days; Treatment gap = 120 days; Switching = 'no' (NSCLC)
+  rationale: 'SAP contains NSCLC-specific LoT definition. Line starts on first valid
+    antineoplastic administration. Ends on: last administration, OR new drug added
+    outside the 45-day window, OR >120-day gap from ALL drugs, OR death. Index line
+    = line matching EX domain drugs (≥2L).'
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adlot.R
+    lines:
+    - 89
+    - 125
+    marker: 'REVISIT: NPM LoT parameters per R5'
+  - file: projects/exelixis-sap/programs/adam_adsl.R
+    lines:
+    - 400
+    - 410
+    marker: 'REVISIT: Index line identification per R5'
+  resolved_by: feature-planner
+  resolved_date: '2026-03-27'
+  revisit_trigger: SAP revision; if data team defines different gap/window parameters
+- id: R6
+  text: AE-HO linkage key — Is HO linked to AE on USUBJID + AESEQ, or USUBJID + date
+    overlap?
+  status: resolved
+  resolution: Join on USUBJID + HO.HOHNKID == as.character(AE.AESEQ)
+  rationale: 'Confirmed by inspecting sim_ho.R — HOHNKID stores the AE sequence number
+    as character. HO columns: STUDYID, DOMAIN, USUBJID, HOSEQ, HOTERM, HOSTDTC, HOENDTC,
+    HOHNKID.'
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adae.R
+    lines:
+    - 278
+    - 290
+    marker: 'REVISIT: AE-HO join per R6'
+  resolved_by: feature-planner
+  resolved_date: '2026-03-27'
+  revisit_trigger: Only if HO domain structure changes
+- id: R7
+  text: Flag convention (Y/blank vs Y/N) — Should flag variables use ADaM standard
+    'Y'/blank or 'Y'/'N'?
+  status: resolved
+  resolution: Use Y/blank (ADaM standard)
+  rationale: 'ADaM-IG defines flag variables as Y or blank. Using Y/N is non-standard
+    and causes issues with ADaM compliance checks. Implementation: ifelse(condition,
+    ''Y'', NA_character_)'
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adsl.R
+    lines:
+    - 200
+    - 250
+    marker: 'REVISIT: Flag convention Y/blank per R7'
+  - file: projects/exelixis-sap/programs/adam_adae.R
+    lines:
+    - 150
+    - 180
+    marker: 'REVISIT: Flag convention Y/blank per R7'
+  resolved_by: feature-planner
+  resolved_date: '2026-03-27'
+  revisit_trigger: Only if NPM-008 data dictionary explicitly mandates Y/N in a future
+    revision
+- id: R8
+  text: ADRS AVAL numeric coding — Is the 1=CR, 2=PR, 3=SD, 4=PD, 5=NE convention
+    intentional?
+  status: resolved
+  resolution: Yes, intentional study-specific convention (lower number = better response)
+  rationale: 'Not a CDISC standard coding; specific to NPM-008 analysis plan. Add
+    ''# NOTE: Study-specific AVAL coding'' comment in code.'
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adrs.R
+    lines:
+    - 245
+    - 260
+    marker: 'REVISIT: Study-specific AVAL coding per R8'
+  resolved_by: feature-planner
+  resolved_date: '2026-03-27'
+  revisit_trigger: SAP revision or if CDISC publishes a standard numeric coding for
+    oncology response
+- id: W4
+  text: What are the controlled terminology values for LOTENDRSN?
+  status: open
+  severity: warning
+  rationale: No standardized CDISC CT exists; raw CMRSDISC values may be acceptable.
+    May need a manual mapping table; agent should explore CM and DS values first.
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adlot.R
+    lines:
+    - 144
+    - 144
+    marker: 'REVISIT: Using raw CMRSDISC — see W4'
+  flagged_by: clinical-code-reviewer
+  flagged_date: '2026-03-27'
+- id: W5
+  text: Neoadjuvant vs adjuvant definition — Is it based on temporal relationship
+    to surgery date (from PR domain), or on specific treatment category codes?
+  status: open
+  severity: warning
+  rationale: Affects derivation logic for pre-index treatment history in ADSL (NEOADJFL,
+    ADJUVFL, NEOADJTRT, ADJUVTRT)
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adsl.R
+    lines:
+    - 420
+    - 435
+    marker: 'REVISIT: Neoadjuvant/adjuvant definition — see W5'
+  flagged_by: feature-planner
+  flagged_date: '2026-03-27'
+- id: W6
+  text: ADBS ADaM compliance — ADBS is not a standard ADaM dataset name. Should it
+    follow BDS structure, or is it a custom dataset?
+  status: open
+  severity: warning
+  rationale: Affects required variables and structure for ADBS implementation
+  affected_code:
+  - file: projects/exelixis-sap/programs/adam_adbs.R
+    lines:
+    - 1
+    - 50
+    marker: 'REVISIT: ADBS structure — see W6'
+  flagged_by: feature-planner
+  flagged_date: '2026-03-27'

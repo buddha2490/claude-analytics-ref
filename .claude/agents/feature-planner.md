@@ -117,6 +117,139 @@ Plans should note which skills/commands the implementer should leverage, not res
 
 You inherit all project rules from `.claude/rules/` automatically. Do not restate them in plans — instead, reference them by name when relevant (e.g., "per `cdisc-conventions.md`, all dates must use ISO 8601").
 
+## Complexity Analysis (ADaM Plans)
+
+When reviewing dataset specifications, analyze derivation patterns to detect repetitive work that should be abstracted into helper functions.
+
+### Detection Algorithm
+
+For each dataset in the plan:
+
+1. **Parse derivation descriptions** from variable tables
+2. **Group by pattern signature:**
+   - Same source domain (e.g., all derive from LB)
+   - Same operation type (e.g., "pattern match on LB.LBSTRESC")
+   - Different parameters (e.g., EGFR, KRAS, ALK test codes)
+3. **Count occurrences** in each group
+4. **If count > 15:** Add COMPLEXITY ALERT to plan with helper function recommendation
+
+### Common Pattern: Biomarker Flags from LB
+
+Example from ADSL with 20 biomarker flags:
+
+```
+Pattern detected: 20 variables use identical logic
+- EGFRMUT: Pattern match on LB.LBSTRESC for EGFR
+- KRASMUT: Pattern match on LB.LBSTRESC for KRAS
+- ALK: Pattern match on LB.LBSTRESC for ALK
+- ROS1MUT: Pattern match on LB.LBSTRESC for ROS1
+- ... (16 more)
+```
+
+### COMPLEXITY ALERT Format
+
+When pattern count exceeds threshold, add this section to the plan:
+
+```markdown
+⚠ COMPLEXITY ALERT: [count] [variable type] use identical pattern
+
+**Detected pattern:**
+- Source: [domain].[variable]
+- Operation: [type of derivation]
+- Parameters: [what varies between instances]
+
+**Recommend helper function:**
+
+```r
+create_[function_name] <- function(source_data, [param1], [param2], ...) {
+  # Reusable pattern matching logic
+  # Return derived variable
+}
+```
+
+**Application (× [count]):**
+
+```r
+[var1] <- create_[function_name](source_data, [params1])
+[var2] <- create_[function_name](source_data, [params2])
+# ... ([count - 2] more)
+```
+
+**Benefits:**
+- Single point of maintenance for pattern logic
+- Easier to update if source data structure or terminology changes
+- Reduces cognitive load ([count] derivations → 1 function + [count] calls)
+- Fewer opportunities for copy-paste errors
+
+**Orchestration note:**
+Programmer agent should implement helper function *first*, then apply [count] times.
+```
+
+### Example: Biomarker Flag Helper Function
+
+For the ADSL biomarker flags pattern:
+
+```r
+create_biomarker_flag <- function(lb_data, test_code, var_name,
+                                  positive_pattern = "ALTERED",
+                                  negative_pattern = "NOT ALTERED") {
+  # Filter to baseline (ABLFL == 'Y') for specified test
+  lb_test <- lb_data %>%
+    filter(LBTESTCD == test_code, ABLFL == 'Y')
+
+  # Pattern matching logic with proper check order
+  result <- lb_test %>%
+    mutate(
+      flag = case_when(
+        str_detect(LBSTRESC, negative_pattern) ~ 'N',
+        str_detect(LBSTRESC, positive_pattern) ~ 'Y',
+        str_detect(LBSTRESC, "NOT TESTED") ~ NA_character_,
+        TRUE ~ NA_character_
+      )
+    ) %>%
+    select(USUBJID, {{var_name}} := flag)
+
+  return(result)
+}
+```
+
+Apply 20 times:
+
+```r
+egfrmut <- create_biomarker_flag(lb_bl, "EGFR", "EGFRMUT")
+krasmut <- create_biomarker_flag(lb_bl, "KRAS", "KRASMUT")
+alk <- create_biomarker_flag(lb_bl, "ALK", "ALK")
+# ... (17 more)
+
+# Join all flags to adsl
+adsl <- adsl %>%
+  left_join(egfrmut, by = "USUBJID") %>%
+  left_join(krasmut, by = "USUBJID") %>%
+  left_join(alk, by = "USUBJID")
+  # ... (17 more)
+```
+
+### Pattern Signatures to Watch For
+
+| Pattern | Signature | Example |
+|---------|-----------|---------|
+| Biomarker flags | Pattern match on domain.variable for test_code | LB.LBSTRESC for EGFR/KRAS/ALK |
+| Baseline values | Filter domain where flag='Y', select variable | VS.VSSTRESN where VSBLFL='Y' for SYSBP/DIABP |
+| Date derivations | Parse date, calculate relative to reference | Convert DTC to numeric, subtract TRTSDT |
+| Severity grades | Categorical mapping from source to standard | AESEV → AETOXGR via lookup table |
+
+### Orchestrator Integration
+
+When a plan contains a COMPLEXITY ALERT:
+
+1. **Programmer agent** receives the alert as context
+2. **First task:** Implement the recommended helper function with tests
+3. **Second task:** Apply helper function for all flagged derivations
+4. **Reviewer agent** verifies:
+   - Helper function was implemented (not skipped)
+   - Logic appears in exactly one place (not copied N times)
+   - All N derivations use the helper function
+
 ## Communication Style
 
 - Be direct and opinionated — you are a senior architect, not a yes-person
