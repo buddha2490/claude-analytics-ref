@@ -1,0 +1,219 @@
+# =============================================================================
+# Program: cohort/adam_adae.R
+# Study: NPM-008 / Exelixis XB010-100
+# Dataset: ADAE — Adverse Events Analysis Dataset
+# Author: r-clinical-programmer agent
+# Date: 2026-03-27
+#
+# Source Domains:
+#   - AE: USUBJID, AETERM, AEDECOD, AESOC, AESTDTC, AEENDTC, AESER,
+#         AEREL, AESEV, AEACN, AESHOSP, AESEQ, AETOXGR
+#   - HO: USUBJID, HOTERM, HOSTDTC, HOENDTC, HOSEQ, HOHNKID
+#   - ADSL: USUBJID, TRTSDT, TRTEDT
+#
+# CDISC References:
+#   - ADaM-IG v1.3 (OCCDS structure for adverse events)
+#   - artifacts/NPM-008/Open-questions-cdisc.md R6 (AE-HO linkage)
+#   - artifacts/NPM-008/Open-questions-cdisc.md R7 (flag convention Y/blank)
+#
+# Dependencies:
+#   - ADSL (cohort/output-data/adam/adsl.xpt) — required for TRTSDT, TRTEDT
+# =============================================================================
+
+# --- Load packages -----------------------------------------------------------
+library(haven)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(lubridate)
+library(xportr)
+
+# --- Read source data --------------------------------------------------------
+ae <- haven::read_xpt("cohort/output-data/sdtm/ae.xpt")
+ho <- haven::read_xpt("cohort/output-data/sdtm/ho.xpt")
+adsl <- haven::read_xpt("cohort/output-data/adam/adsl.xpt")
+dm <- haven::read_xpt("cohort/output-data/sdtm/dm.xpt")
+
+# --- Derive base variables from AE -------------------------------------------
+# Start with AE domain, add numeric dates and study days
+
+adae <- ae %>%
+  # Convert dates to numeric
+  mutate(
+    AESTDT = as.numeric(as.Date(AESTDTC)),
+    AEENDT = if_else(!is.na(AEENDTC),
+                     as.numeric(as.Date(AEENDTC)),
+                     NA_real_)
+  ) %>%
+  # Merge ADSL treatment dates
+  left_join(
+    adsl %>% select(USUBJID, TRTSDT, TRTEDT),
+    by = "USUBJID"
+  ) %>%
+  # Derive study days relative to treatment start
+  # REVISIT: Study day calculation per CDISC (no day zero)
+  mutate(
+    ASTDY = case_when(
+      is.na(AESTDT) ~ NA_real_,
+      AESTDT >= TRTSDT ~ AESTDT - TRTSDT + 1,
+      TRUE ~ AESTDT - TRTSDT
+    ),
+    AENDY = case_when(
+      is.na(AEENDT) ~ NA_real_,
+      AEENDT >= TRTSDT ~ AEENDT - TRTSDT + 1,
+      TRUE ~ AEENDT - TRTSDT
+    )
+  ) %>%
+  # Derive AE duration in days
+  mutate(
+    AEDUR = if_else(!is.na(AEENDT) & !is.na(AESTDT),
+                    AEENDT - AESTDT + 1,
+                    NA_real_)
+  )
+
+# --- Derive treatment-emergent flag ------------------------------------------
+# TRTEMFL = 'Y' if AESTDT >= ADSL.TRTSDT
+# REVISIT: Flag convention Y/blank per artifacts/NPM-008/Open-questions-cdisc.md R7
+
+adae <- adae %>%
+  mutate(
+    TRTEMFL = if_else(!is.na(AESTDT) & !is.na(TRTSDT) & AESTDT >= TRTSDT,
+                      "Y",
+                      NA_character_)
+  )
+
+# --- Derive severity numeric coding -------------------------------------------
+# AESEVN: 1=MILD, 2=MODERATE, 3=SEVERE, 4=LIFE THREATENING, 5=DEATH
+
+adae <- adae %>%
+  mutate(
+    AESEVN = case_when(
+      toupper(AESEV) == "MILD" ~ 1L,
+      toupper(AESEV) == "MODERATE" ~ 2L,
+      toupper(AESEV) == "SEVERE" ~ 3L,
+      toupper(AESEV) == "LIFE THREATENING" ~ 4L,
+      toupper(AESEV) == "DEATH" ~ 5L,
+      TRUE ~ NA_integer_
+    )
+  )
+
+# --- Merge hospitalization data -----------------------------------------------
+# REVISIT: AE-HO linkage per artifacts/NPM-008/Open-questions-cdisc.md R6
+# Join on USUBJID + HO.HOHNKID == as.character(AE.AESEQ)
+
+adae <- adae %>%
+  mutate(AESEQ_C = as.character(AESEQ)) %>%
+  left_join(
+    ho %>% select(USUBJID, HOHNKID, HOSTDTC, HOENDTC),
+    by = c("USUBJID", "AESEQ_C" = "HOHNKID")
+  ) %>%
+  # Derive hospitalization duration
+  mutate(
+    HOSPDUR = if_else(
+      !is.na(HOSTDTC) & !is.na(HOENDTC),
+      as.numeric(as.Date(HOENDTC) - as.Date(HOSTDTC)) + 1,
+      NA_real_
+    )
+  ) %>%
+  select(-AESEQ_C)  # Remove temporary join key
+
+# --- Finalize variable selection and ordering ---------------------------------
+adae <- adae %>%
+  select(
+    STUDYID, USUBJID, AESEQ,
+    AETERM, AEDECOD, AESOC,
+    AESTDTC, AEENDTC, AESTDT, AEENDT,
+    ASTDY, AENDY, AEDUR,
+    AESER, AEREL, AESEV, AESEVN,
+    AEACN, AESHOSP,
+    TRTEMFL, HOSPDUR
+  )
+
+# --- Apply variable labels and types ------------------------------------------
+adae_meta <- tibble::tibble(
+  variable = c(
+    "STUDYID", "USUBJID", "AESEQ",
+    "AETERM", "AEDECOD", "AESOC",
+    "AESTDTC", "AEENDTC", "AESTDT", "AEENDT",
+    "ASTDY", "AENDY", "AEDUR",
+    "AESER", "AEREL", "AESEV", "AESEVN",
+    "AEACN", "AESHOSP",
+    "TRTEMFL", "HOSPDUR"
+  ),
+  label = c(
+    "Study Identifier",
+    "Unique Subject Identifier",
+    "Adverse Event Sequence Number",
+    "Reported Term for the Adverse Event",
+    "Dictionary-Derived Term",
+    "Primary System Organ Class",
+    "Start Date/Time of Adverse Event",
+    "End Date/Time of Adverse Event",
+    "Analysis Start Date",
+    "Analysis End Date",
+    "Analysis Start Relative Day",
+    "Analysis End Relative Day",
+    "Adverse Event Duration (Days)",
+    "Serious Event",
+    "Relationship to Study Treatment",
+    "Severity/Intensity",
+    "Severity/Intensity Numeric",
+    "Action Taken with Study Treatment",
+    "Hospitalization for Adverse Event",
+    "Treatment Emergent Flag",
+    "Hospitalization Duration (Days)"
+  ),
+  type = c(
+    "character", "character", "integer",
+    "character", "character", "character",
+    "character", "character", "numeric", "numeric",
+    "numeric", "numeric", "numeric",
+    "character", "character", "character", "integer",
+    "character", "character",
+    "character", "numeric"
+  )
+)
+
+adae <- adae %>%
+  xportr::xportr_label(metadata = adae_meta, domain = "ADAE") %>%
+  xportr::xportr_type(metadata = adae_meta, domain = "ADAE")
+
+# --- Validation checks --------------------------------------------------------
+message("\n=== ADAE Validation ===")
+message("Row count: ", nrow(adae))
+message("Subject count: ", n_distinct(adae$USUBJID))
+
+# Check key variable completeness
+key_vars <- c("USUBJID", "AESEQ", "AETERM", "AESTDTC")
+missing_counts <- sapply(adae[, key_vars], function(x) sum(is.na(x)))
+message("\nMissing counts for key variables:")
+print(missing_counts)
+
+# Check TRTEMFL distribution
+message("\nTRTEMFL distribution:")
+print(table(adae$TRTEMFL, useNA = "ifany"))
+
+# Check AESEVN distribution
+message("\nAESEVN distribution:")
+print(table(adae$AESEVN, useNA = "ifany"))
+
+# Check HOSPDUR summary
+message("\nHOSPDUR summary (for AEs with hospitalization):")
+print(summary(adae$HOSPDUR[!is.na(adae$HOSPDUR)]))
+
+# CDISC compliance: unique keys (USUBJID + AESEQ)
+if (any(duplicated(adae[, c("USUBJID", "AESEQ")]))) {
+  stop("BLOCKING: Duplicate USUBJID + AESEQ found in ADAE")
+}
+
+# Cross-domain consistency: all subjects in DM
+if (!all(adae$USUBJID %in% dm$USUBJID)) {
+  stop("BLOCKING: ADAE contains subjects not in DM")
+}
+
+message("\nValidation checks passed.")
+
+# --- Save dataset -------------------------------------------------------------
+saveRDS(adae, "cohort/output-data/adam/adae.rds")
+haven::write_xpt(adae, "cohort/output-data/adam/adae.xpt")
+message("\nADAE saved to: cohort/output-data/adam/adae.xpt")

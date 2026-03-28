@@ -1,0 +1,242 @@
+# =============================================================================
+# Program: cohort/adam_adlot.R
+# Study: NPM-008 / Exelixis XB010-100
+# Dataset: ADLOT — Line of Therapy
+# Author: r-clinical-programmer agent
+# Date: 2026-03-27
+#
+# Source Domains:
+#   - DM: USUBJID, STUDYID, RFSTDTC, RFENDTC, DTHDTC, DTHFL
+#   - EX: USUBJID, EXTRT, EXSTDTC, EXENDTC (index treatment)
+#   - CM: USUBJID, CMTRT, CMSTDTC, CMENDTC, CMRSDISC, CMCAT (prior meds)
+#   - EC: USUBJID, ECTRT, ECSTDTC, ECENDTC (exposure as collected)
+#
+# CDISC References:
+#   - NPM Line of Therapy algorithm — NSCLC parameters
+#   - ADaM-IG: Basic Data Structure
+#
+# Dependencies:
+#   - None (Wave 1 ADaM dataset — no upstream ADaM dependencies)
+#   - SDTM dependencies: DM, EX, CM, EC
+#
+# REVISIT: NPM LoT algorithm — NSCLC-specific parameters from SAP.
+#          See artifacts/NPM-008/Open-questions-cdisc.md R5
+# =============================================================================
+
+library(haven)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(lubridate)
+library(xportr)
+
+# --- Read source data --------------------------------------------------------
+dm <- haven::read_xpt("cohort/output-data/dm.xpt")
+ex <- haven::read_xpt("cohort/output-data/ex.xpt")
+cm <- haven::read_xpt("cohort/output-data/cm.xpt")
+ec <- haven::read_xpt("cohort/output-data/ec.xpt")
+
+# Extract death dates for line censoring
+death_dates <- dm %>%
+  filter(DTHFL == "Y") %>%
+  select(USUBJID, DTHDTC) %>%
+  mutate(DTHDT_NUM = as.numeric(as.Date(DTHDTC)))
+
+# --- NPM LoT Algorithm Parameters (NSCLC) -----------------------------------
+# REVISIT: See Open-questions-cdisc.md R5
+WINDOW_DAYS <- 45    # Drugs started within 45 days of line start = same line
+GAP_DAYS <- 120      # Gap >120 days from ALL drugs = line ends
+
+# --- Combine all therapy records ---------------------------------------------
+# Combine EX, CM (prior meds), and EC into a unified therapy dataset
+# Note: EX contains index (study) treatment
+#       CM PRIOR MEDICATIONS contains prior antineoplastic therapy
+#       EC may supplement EX
+
+therapy_all <- bind_rows(
+  ex %>%
+    select(USUBJID, TRT = EXTRT, STDT = EXSTDTC, ENDT = EXENDTC) %>%
+    mutate(SOURCE = "EX"),
+
+  cm %>%
+    filter(CMCAT == "PRIOR MEDICATIONS") %>%
+    select(USUBJID, TRT = CMTRT, STDT = CMSTDTC, ENDT = CMENDTC,
+           RSDISC = CMRSDISC) %>%
+    mutate(SOURCE = "CM"),
+
+  ec %>%
+    select(USUBJID, TRT = ECTRT, STDT = ECSTDTC, ENDT = ECENDTC) %>%
+    mutate(SOURCE = "EC")
+) %>%
+  # Convert dates
+  mutate(
+    STDT_NUM = as.numeric(as.Date(STDT)),
+    ENDT_NUM = as.numeric(as.Date(ENDT))
+  ) %>%
+  # Remove records with missing start date
+  filter(!is.na(STDT_NUM)) %>%
+  arrange(USUBJID, STDT_NUM)
+
+# --- Group therapies into lines of therapy ----------------------------------
+# REVISIT: NPM LoT algorithm — NSCLC-specific parameters from SAP
+# Window = 45 days; Treatment gap = 120 days; Switching = 'no' (NSCLC)
+# See artifacts/NPM-008/Open-questions-cdisc.md R5
+
+# Iterative line assignment algorithm:
+# For each subject:
+#   1. Start with line 1 at first therapy
+#   2. For each subsequent therapy:
+#      a. If start date within 45 days of CURRENT LINE start → same line
+#      b. If gap >120 days from previous therapy end → new line
+#      c. Otherwise → same line
+#   3. If death date falls during a line, that line ends at death date
+
+# Initialize line assignment with subject-level split
+adlot_build <- therapy_all %>%
+  arrange(USUBJID, STDT_NUM) %>%
+  split(.$USUBJID) %>%
+  lapply(function(subj_data) {
+    if (nrow(subj_data) == 0) return(subj_data)
+
+    # Initialize first line
+    subj_data$LOT <- 1
+    subj_data$LINE_START <- subj_data$STDT_NUM[1]
+    current_line <- 1
+    current_line_start <- subj_data$STDT_NUM[1]
+
+    # Iterate through therapies
+    for (i in 2:nrow(subj_data)) {
+      prev_end <- subj_data$ENDT_NUM[i-1]
+      curr_start <- subj_data$STDT_NUM[i]
+
+      # Rule 1: Window check (within 45 days of current line start)
+      within_window <- curr_start <= (current_line_start + WINDOW_DAYS)
+
+      # Rule 2: Gap check (>120 days from previous therapy end)
+      gap_exceeds_limit <- !is.na(prev_end) && (curr_start - prev_end) > GAP_DAYS
+
+      # Decide line assignment
+      if (!within_window || gap_exceeds_limit) {
+        # Start new line
+        current_line <- current_line + 1
+        current_line_start <- curr_start
+      }
+
+      subj_data$LOT[i] <- current_line
+      subj_data$LINE_START[i] <- current_line_start
+    }
+
+    return(subj_data)
+  }) %>%
+  bind_rows()
+
+# --- Collapse to one row per line -------------------------------------------
+adlot_collapsed <- adlot_build %>%
+  group_by(USUBJID, LOT) %>%
+  summarise(
+    LOTSTDTC = min(STDT, na.rm = TRUE),
+    LOTENDTC = max(ENDT, na.rm = TRUE),
+    LOTSTDT = min(STDT_NUM, na.rm = TRUE),
+    LOTENDT = max(ENDT_NUM, na.rm = TRUE),
+    # REGIMEN: concatenate unique drug names, alphabetically sorted
+    REGIMEN = paste(sort(unique(TRT)), collapse = " + "),
+    # LOTENDRSN: use discontinuation reason if available (from CM)
+    LOTENDRSN = first(na.omit(RSDISC)),
+    # Track if any therapy in this line came from EX (index treatment)
+    FROM_EX = any(SOURCE == "EX"),
+    .groups = "drop"
+  ) %>%
+  # Apply death date censoring: if death date falls during line, line ends at death
+  left_join(death_dates, by = "USUBJID") %>%
+  mutate(
+    # If death date is between line start and end, censor line end at death
+    LOTENDT = if_else(
+      !is.na(DTHDT_NUM) & DTHDT_NUM >= LOTSTDT & DTHDT_NUM < LOTENDT,
+      DTHDT_NUM,
+      LOTENDT
+    ),
+    LOTENDTC = if_else(
+      !is.na(DTHDTC) & as.Date(DTHDTC) >= as.Date(LOTSTDTC) & as.Date(DTHDTC) < as.Date(LOTENDTC),
+      DTHDTC,
+      LOTENDTC
+    )
+  ) %>%
+  select(-DTHDT_NUM, -DTHDTC) %>%
+  # Handle infinite LOTENDTC when all end dates are NA (ongoing therapy)
+  mutate(
+    LOTENDTC = if_else(is.infinite(LOTENDT), NA_character_, LOTENDTC),
+    LOTENDT = if_else(is.infinite(LOTENDT), NA_real_, LOTENDT)
+  )
+
+# --- Merge with DM to get all subjects --------------------------------------
+adlot <- dm %>%
+  select(STUDYID, USUBJID) %>%
+  left_join(adlot_collapsed, by = "USUBJID") %>%
+  # For subjects with no therapy records, set LOT = NA
+  mutate(
+    # INDEXFL: 'Y' if this line contains drugs from EX domain
+    # REVISIT: Flag convention — use Y/blank per ADaM-IG
+    # See artifacts/NPM-008/Open-questions-cdisc.md R7
+    # NOTE: NA_character_ becomes empty string in XPT — this is correct ADaM Y/blank convention
+    INDEXFL = ifelse(FROM_EX == TRUE, "Y", NA_character_)
+  ) %>%
+  select(-FROM_EX) %>%
+  # Keep only subjects with at least one line of therapy
+  filter(!is.na(LOT)) %>%
+  arrange(USUBJID, LOT)
+
+# --- Apply attributes and write XPT -----------------------------------------
+# Build metadata frame for xportr
+adlot_meta <- tibble::tibble(
+  variable = c("STUDYID", "USUBJID", "LOT", "LOTSTDTC", "LOTENDTC",
+               "LOTSTDT", "LOTENDT", "REGIMEN", "LOTENDRSN", "INDEXFL"),
+  label = c("Study Identifier", "Unique Subject Identifier",
+            "Line of Therapy Number", "Line Start Date (ISO 8601)",
+            "Line End Date (ISO 8601)", "Line Start Date (Numeric)",
+            "Line End Date (Numeric)", "Regimen (Drug Names)",
+            "Reason for End of Line", "Index Treatment Line Flag"),
+  type = c("character", "character", "numeric", "character", "character",
+           "numeric", "numeric", "character", "character", "character")
+)
+
+adlot <- adlot %>%
+  xportr::xportr_label(metadata = adlot_meta, domain = "ADLOT") %>%
+  xportr::xportr_type(metadata = adlot_meta, domain = "ADLOT")
+
+# --- Save dataset ------------------------------------------------------------
+saveRDS(adlot, "cohort/output-data/adlot.rds")
+haven::write_xpt(adlot, "cohort/output-data/adlot.xpt")
+
+# --- Validation checks -------------------------------------------------------
+message("=== ADLOT Validation ===")
+message("Row count: ", nrow(adlot))
+message("Subject count: ", n_distinct(adlot$USUBJID))
+message("Subjects in DM: ", n_distinct(dm$USUBJID))
+message("Lines per subject (median): ", median(table(adlot$USUBJID)))
+
+# Key variable completeness
+missing_counts <- sapply(adlot[, c("USUBJID", "LOT", "LOTSTDTC", "REGIMEN")],
+                         function(x) sum(is.na(x)))
+message("\nMissing value counts:")
+print(missing_counts)
+
+# CDISC compliance: unique keys
+stopifnot("Duplicate USUBJID-LOT combinations detected" =
+            !any(duplicated(adlot[, c("USUBJID", "LOT")])))
+
+# Cross-domain consistency: all subjects in DM
+stopifnot("ADLOT contains subjects not in DM" =
+            all(adlot$USUBJID %in% dm$USUBJID))
+
+# Date consistency: LOTSTDTC <= LOTENDTC
+date_violations <- adlot %>%
+  filter(!is.na(LOTSTDT) & !is.na(LOTENDT) & LOTSTDT > LOTENDT)
+message("\nDate consistency violations (LOTSTDTC > LOTENDTC): ", nrow(date_violations))
+stopifnot("Date violations detected (LOTSTDTC > LOTENDTC)" = nrow(date_violations) == 0)
+
+# Index line check
+index_count <- sum(adlot$INDEXFL == "Y", na.rm = TRUE)
+message("Index lines (INDEXFL='Y'): ", index_count)
+
+message("\n✓ ADLOT dataset created successfully")
+message("  Output: cohort/output-data/adlot.xpt")
