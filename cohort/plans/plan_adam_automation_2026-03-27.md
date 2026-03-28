@@ -120,7 +120,7 @@ Line end:        Latest of: last administration date
 Index line:      The LOT whose drugs match the EX domain drugs (study treatment, ≥2L)
 ```
 
-Add `# REVISIT: NPM LoT algorithm — NSCLC-specific parameters from SAP. See artifacts/NPM-008/Open-questions-cdisc.md R5` in the grouping logic block.
+Add `# REVISIT: NPM LoT algorithm — NSCLC-specific parameters from SAP. See cohort/artifacts/Open-questions-cdisc.md R5` in the grouping logic block.
 
 **Complexity flags:**
 - **HIGH:** The NPM LoT algorithm is NSCLC-specific. All parameters above are confirmed from SAP. No additional user input required.
@@ -267,7 +267,7 @@ Add `# REVISIT: NPM LoT algorithm — NSCLC-specific parameters from SAP. See ar
 
 **Complexity flags:**
 - **HIGH:** 101 variables with derivations spanning 11 source domains + ADLOT. See Section 5, Step 5 for the recommended modular implementation approach.
-- **HIGH:** CCISCORE requires implementing the Charlson algorithm. **RESOLVED: Use Quan 2011 updated weights, derived from MH.MHTERM. Add a `# REVISIT: Quan 2011 weights used — see artifacts/NPM-008/Open-questions-cdisc.md R1/R2` comment in the CCISCORE derivation block.**
+- **HIGH:** CCISCORE requires implementing the Charlson algorithm. **RESOLVED: Use Quan 2011 updated weights, derived from MH.MHTERM. Add a `# REVISIT: Quan 2011 weights used — see cohort/artifacts/Open-questions-cdisc.md R1/R2` comment in the CCISCORE derivation block.**
 - **MEDIUM:** 20+ biomarker flags require knowing the exact LBTESTCD values used in the simulated data. Agent must explore LB domain first.
 - **MEDIUM:** Comorbidity flags require term-matching against MH.MHTERM — need to confirm the exact term lists.
 - **MEDIUM:** Staging derivations depend on how TNM data is structured in MH.
@@ -313,7 +313,7 @@ SAP states: *"Both CR and PR will be confirmed based on RECIST1.1, and the minim
 5. If only PD (and no SD/CR/PR): BOR = PD
 6. If no evaluable post-baseline assessments: BOR = NE
 
-Add `# REVISIT: Confirmed response per SAP (≥28-day interval). See artifacts/NPM-008/Open-questions-cdisc.md R3` in the BOR derivation block.
+Add `# REVISIT: Confirmed response per SAP (≥28-day interval). See cohort/artifacts/Open-questions-cdisc.md R3` in the BOR derivation block.
 
 **CDISC RAG queries to run:**
 - ADaM ADRS/BDS structure for oncology response
@@ -972,7 +972,7 @@ CRITICAL RULES:
 - Use RELATIVE paths only (e.g., "cohort/output-data/sdtm/dm.xpt")
 - Flag variables must use Y/blank (NA_character_), not Y/N
 - Create cohort/logs/ directory if it does not exist before writing dev log
-- Check artifacts/NPM-008/Open-questions-cdisc.md for resolved decisions before implementing
+- Check cohort/artifacts/Open-questions-cdisc.md for resolved decisions before implementing
 
 Source data is in: cohort/output-data/sdtm/ (SDTM XPT files) and cohort/output-data/adam/ (ADaM XPT files)
 [If dependent on upstream ADaM]: Read <upstream>.xpt from cohort/output-data/adam/
@@ -1043,7 +1043,7 @@ Save QC report to: QA reviews/qa_adam_<dataset>_2026-03-27.md
 
 ## 10. Risks and Open Questions
 
-> **Open questions tracker:** `artifacts/NPM-008/Open-questions-cdisc.md` — all decisions and open items are maintained there. Programmers must check that file before implementing any derivation listed below.
+> **Open questions tracker:** `cohort/artifacts/Open-questions-cdisc.md` — all decisions and open items are maintained there. Programmers must check that file before implementing any derivation listed below.
 
 ### BLOCKING — Must Resolve Before Coding
 

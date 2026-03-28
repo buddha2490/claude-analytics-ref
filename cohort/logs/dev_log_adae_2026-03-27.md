@@ -19,7 +19,7 @@ Read plan at `plans/plan_adam_automation_2026-03-27.md` Section 4.5 (ADAE specif
   - TRTEMFL: Y/blank flag if AESTDT >= TRTSDT
   - AESEVN: Numeric severity (1=MILD, 2=MODERATE, 3=SEVERE, 4=LIFE THREATENING, 5=DEATH)
   - HOSPDUR: Duration from HO domain (HOENDTC - HOSTDTC + 1)
-- **AE-HO linkage:** Resolved per R6 in `artifacts/NPM-008/Open-questions-cdisc.md` — join on USUBJID + HO.HOHNKID == as.character(AE.AESEQ)
+- **AE-HO linkage:** Resolved per R6 in `cohort/artifacts/Open-questions-cdisc.md` — join on USUBJID + HO.HOHNKID == as.character(AE.AESEQ)
 
 **Critical conventions:**
 - Flag variables: Y/blank (NA_character_), not Y/N (R7)
@@ -89,8 +89,8 @@ All derivations executed successfully:
 
 **Code annotations:**
 - Added `# REVISIT: Study day calculation per CDISC (no day zero)` comment
-- Added `# REVISIT: Flag convention Y/blank per artifacts/NPM-008/Open-questions-cdisc.md R7` comment
-- Added `# REVISIT: AE-HO linkage per artifacts/NPM-008/Open-questions-cdisc.md R6` comment
+- Added `# REVISIT: Flag convention Y/blank per cohort/artifacts/Open-questions-cdisc.md R7` comment
+- Added `# REVISIT: AE-HO linkage per cohort/artifacts/Open-questions-cdisc.md R6` comment
 
 ---
 

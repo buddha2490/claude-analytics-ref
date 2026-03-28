@@ -11,7 +11,7 @@
 
 **Plan section:** Section 4.1 — ADLOT
 **Global conventions:** Section 5.5 — flag convention (Y/blank), relative paths, XPT-only source data
-**Open questions reviewed:** artifacts/NPM-008/Open-questions-cdisc.md
+**Open questions reviewed:** cohort/artifacts/Open-questions-cdisc.md
 
 **Key findings:**
 - R5: NPM LoT algorithm — NSCLC parameters resolved (45-day window, 120-day gap)
@@ -265,7 +265,7 @@ From initial dev log Section "Known Limitations and Future Work":
 ## References
 
 - Plan: plans/plan_adam_automation_2026-03-27.md Section 4.1
-- Open questions: artifacts/NPM-008/Open-questions-cdisc.md (R5, R7, W4)
+- Open questions: cohort/artifacts/Open-questions-cdisc.md (R5, R7, W4)
 - ADS Code: NPM line-of-therapy algorithm documentation (from CDISC RAG)
 - ADaM-IG: Basic Data Structure principles
 - QC Report (initial): QA reviews/qa_adam_adlot_2026-03-27.md

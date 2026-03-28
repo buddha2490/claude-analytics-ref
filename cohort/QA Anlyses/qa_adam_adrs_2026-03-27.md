@@ -112,7 +112,7 @@ None.
   - PD → 4 (9 subjects)
   - NE → 5 (13 subjects)
 - Comments at lines 73-74 and 171 explicitly note: "NOTE: Study-specific AVAL coding — not CDISC standard"
-- Code references `artifacts/NPM-008/Open-questions-cdisc.md R8` at line 32 (REVISIT comment)
+- Code references `cohort/artifacts/Open-questions-cdisc.md R8` at line 32 (REVISIT comment)
 
 **Status:** PASS
 

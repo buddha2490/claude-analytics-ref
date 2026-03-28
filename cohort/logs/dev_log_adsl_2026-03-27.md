@@ -123,7 +123,7 @@ Pattern match on MH.MHTERM where MHCAT='COMORBIDITY DIAGNOSES':
 ### Charlson Comorbidity Index
 **REVISIT comment added per Open-questions-cdisc.md R1/R2:**
 ```r
-# REVISIT: Quan 2011 updated weights used — see artifacts/NPM-008/Open-questions-cdisc.md R1/R2
+# REVISIT: Quan 2011 updated weights used — see cohort/artifacts/Open-questions-cdisc.md R1/R2
 # Derived from MH.MHTERM (not ICD-10 codes)
 ```
 

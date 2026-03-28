@@ -203,9 +203,9 @@ CR: 0  (no complete responses)
 
 ## Notes for QC Review
 
-1. **Confirmed response logic (R3):** The BOR derivation implements the SAP requirement for ≥28-day confirmation. Code comment references `artifacts/NPM-008/Open-questions-cdisc.md R3`.
+1. **Confirmed response logic (R3):** The BOR derivation implements the SAP requirement for ≥28-day confirmation. Code comment references `cohort/artifacts/Open-questions-cdisc.md R3`.
 
-2. **AVAL coding (R8):** The numeric coding 1=CR through 5=NE is study-specific and intentional per NPM-008 analysis plan. Code comment references `artifacts/NPM-008/Open-questions-cdisc.md R8`.
+2. **AVAL coding (R8):** The numeric coding 1=CR through 5=NE is study-specific and intentional per NPM-008 analysis plan. Code comment references `cohort/artifacts/Open-questions-cdisc.md R8`.
 
 3. **Subjects with no baseline:** 2 subjects (NPM008-02-A01029 and one other) have no assessments before or on TRTSDT. This is expected for subjects who started treatment immediately or had late enrollment. ABLFL is correctly left blank for these subjects.
 

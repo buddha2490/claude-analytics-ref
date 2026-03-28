@@ -48,3 +48,5 @@ names(adam) <- adam_names
 
 message("SDTM datasets loaded: ", paste(names(sdtm), collapse = ", "))
 message("ADaM datasets loaded: ", paste(names(adam), collapse = ", "))
+
+

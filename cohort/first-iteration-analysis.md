@@ -311,7 +311,7 @@ Only proceed to Wave 1 if pre-flight is GREEN.
 - Resolved items marked with REVISIT comments:
 
 ```r
-# REVISIT: Quan 2011 weights used — see artifacts/NPM-008/Open-questions-cdisc.md R1/R2
+# REVISIT: Quan 2011 weights used — see cohort/artifacts/Open-questions-cdisc.md R1/R2
 ```
 
 **Enhancement: Formalize as Machine-Readable Format**
