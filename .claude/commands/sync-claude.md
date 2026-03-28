@@ -18,6 +18,8 @@ This command merges `.claude` directories across all branches in the repository,
 /sync-claude
 ```
 
+When invoked, this command executes `.claude/commands/sync-claude-impl.sh`.
+
 The command will:
 - Save your current branch and return to it when done
 - Process all branches automatically (main, cohort, qa-reviews, etc.)
