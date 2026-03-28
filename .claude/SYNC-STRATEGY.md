@@ -80,6 +80,45 @@ git diff main qa-reviews -- .claude/
 └── settings.local.json
 ```
 
+## What If You Create New .claude Files on a Branch?
+
+If you create new files on a branch other than main (e.g., `cohort` or `qa-reviews`):
+
+1. **The file only exists on that branch** - other branches won't see it
+2. **Claude Code recognizes it immediately** - the command/skill/agent is available when on that branch
+3. **Branches are now out of sync** - decide how to handle it:
+
+### Decision Tree
+
+**Is this useful for all branches?**
+
+✅ **YES** → Promote to all branches:
+```bash
+# Bring the file from feature branch to main
+git checkout main
+git checkout cohort -- .claude/path/to/new-file.md
+git add .claude/path/to/new-file.md
+git commit -m "[CONFIG] Promote new-file from cohort"
+
+# Sync to other branches
+git checkout qa-reviews && git cherry-pick main
+git checkout cohort && git cherry-pick main
+git checkout main
+```
+
+❌ **NO** → Keep it branch-specific:
+- Do nothing! It stays on the one branch
+- Good for: experimental features, branch-specific workflows
+- Document it in the "Branch-Specific Configuration" section below
+
+### Example: Branch-Specific Command
+
+If you create `/cohort-report` on the `cohort` branch that only makes sense in that context:
+1. Create it on `cohort` branch
+2. Commit it
+3. Leave it there - don't sync to other branches
+4. Document it below
+
 ## Exception: Branch-Specific Configuration
 
 If you need branch-specific Claude configuration (rare), document it here:
