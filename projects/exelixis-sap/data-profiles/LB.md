@@ -1,70 +1,122 @@
 # Data Profile: LB
-**Generated:** 2026-03-28
-**Records:** 400
+**Generated:** 2026-03-29
+**Records:** 1,400
 **Subjects:** 40
 
 ---
 
 ## LBTESTCD
-**Label:** Lab Test or Examination Short Name
 
-**Unique values:** 10
+**Unique values:** 35
 
 | Value | Count | Percent |
 |-------|-------|---------|
-| ALK | 40 | 10.0% |
-| BRAF | 40 | 10.0% |
-| EGFR | 40 | 10.0% |
-| HER2 | 40 | 10.0% |
-| KRAS | 40 | 10.0% |
-| MET | 40 | 10.0% |
-| NTRK | 40 | 10.0% |
-| PDL1 | 40 | 10.0% |
-| RET | 40 | 10.0% |
-| ROS1 | 40 | 10.0% |
+| ALBUM | 40 | 2.9% |
+| ALK | 40 | 2.9% |
+| ALT | 40 | 2.9% |
+| ANC | 40 | 2.9% |
+| AST | 40 | 2.9% |
+| BILIRUB | 40 | 2.9% |
+| CORES | 40 | 2.9% |
+| EGFR | 40 | 2.9% |
+| ERBB2 | 40 | 2.9% |
+| HEMOGL | 40 | 2.9% |
+| HER2IHC | 40 | 2.9% |
+| KRAS | 40 | 2.9% |
+| LOHSC | 40 | 2.9% |
+| LOHSUM | 40 | 2.9% |
+| MET | 40 | 2.9% |
+| MMRMLH1 | 40 | 2.9% |
+| MMRMSH2 | 40 | 2.9% |
+| MMRMSH6 | 40 | 2.9% |
+| MMROVER | 40 | 2.9% |
+| MMRPMS2 | 40 | 2.9% |
+| MSISTAT | 40 | 2.9% |
+| NTRK1 | 40 | 2.9% |
+| NTRK2 | 40 | 2.9% |
+| NTRK3 | 40 | 2.9% |
+| PDL1SC | 40 | 2.9% |
+| PDL1SUM | 40 | 2.9% |
+| PDL1TYPE | 40 | 2.9% |
+| PLATELT | 40 | 2.9% |
+| RB1 | 40 | 2.9% |
+| RET | 40 | 2.9% |
+| ROS1 | 40 | 2.9% |
+| SCREAT | 40 | 2.9% |
+| TMB | 40 | 2.9% |
+| TP53 | 40 | 2.9% |
+| WBC | 40 | 2.9% |
 
 ---
 
 ## LBSTRESC
-**Label:** Character Result/Finding in Std Format
 
-**Unique values:** 11
+**Unique values:** 273
+
+⚠ **High cardinality:** 273 unique values (showing top 50)
 
 | Value | Count | Percent |
 |-------|-------|---------|
-| NOT DETECTED | 146 | 36.5% |
-| NOT AMPLIFIED | 70 | 17.5% |
-| NOT ALTERED | 62 | 15.5% |
-| NEGATIVE | 42 | 10.5% |
-| LOW | 18 | 4.5% |
-| ALTERED | 15 | 3.8% |
-| HIGH | 15 | 3.8% |
-| DETECTED | 14 | 3.5% |
-| AMPLIFIED | 10 | 2.5% |
-| POSITIVE | 5 | 1.2% |
-| NOT TESTED | 3 | 0.8% |
+| NOT ALTERED | 389 | 27.8% |
+| Positive/Intact | 157 | 11.2% |
+| NOT TESTED | 45 | 3.2% |
+| ALTERED | 39 | 2.8% |
+| Proficient | 37 | 2.6% |
+| MSS | 36 | 2.6% |
+| 0 | 24 | 1.7% |
+| TPS | 24 | 1.7% |
+| Low | 21 | 1.5% |
+| LOW | 18 | 1.3% |
+| CPS | 16 | 1.1% |
+| 0.7 | 14 | 1.0% |
+| 0.8 | 13 | 0.9% |
+| 1 | 13 | 0.9% |
+| 4 | 13 | 0.9% |
+| HIGH | 13 | 0.9% |
+| 0.9 | 12 | 0.9% |
+| 8 | 12 | 0.9% |
+| High | 12 | 0.9% |
+| VUS | 11 | 0.8% |
+| 0.6 | 9 | 0.6% |
+| 1+ | 9 | 0.6% |
+| 3.6 | 9 | 0.6% |
+| NEGATIVE | 9 | 0.6% |
+| 0.4 | 8 | 0.6% |
+| 3 | 8 | 0.6% |
+| 3.5 | 8 | 0.6% |
+| 5 | 8 | 0.6% |
+|  | 7 | 0.5% |
+| 7 | 7 | 0.5% |
+| 1.2 | 6 | 0.4% |
+| 2 | 6 | 0.4% |
+| 2+ | 6 | 0.4% |
+| 3.3 | 6 | 0.4% |
+| 3.8 | 6 | 0.4% |
+| 4.2 | 6 | 0.4% |
+| 4.3 | 6 | 0.4% |
+| Indeterminate | 6 | 0.4% |
+| 3.4 | 5 | 0.4% |
+| 6 | 5 | 0.4% |
+| 8.4 | 5 | 0.4% |
+| 0.5 | 4 | 0.3% |
+| 1.1 | 4 | 0.3% |
+| 10 | 4 | 0.3% |
+| 3.9 | 4 | 0.3% |
+| 4.1 | 4 | 0.3% |
+| 4.4 | 4 | 0.3% |
+| 8.2 | 4 | 0.3% |
+| 9 | 4 | 0.3% |
+| 10.2 | 3 | 0.2% |
 
 ---
 
-## LBCAT
-**Label:** Category for Lab Test
+## LBBLFL
 
 **Unique values:** 1
 
 | Value | Count | Percent |
 |-------|-------|---------|
-| BIOMARKER | 400 | 100.0% |
-
----
-
-## LBMETHOD
-**Label:** Method of Test or Examination
-
-**Unique values:** 1
-
-| Value | Count | Percent |
-|-------|-------|---------|
-| NGS | 400 | 100.0% |
+|  | 1,400 | 100.0% |
 
 ---
 
@@ -74,26 +126,26 @@
 
 | LBTESTCD | LBSTRESC | Count |
 |-------|-------|-------|
-| NTRK | NOT DETECTED | 16 |
-| RET | NOT DETECTED | 16 |
-| BRAF | NOT DETECTED | 15 |
-| HER2 | NOT DETECTED | 15 |
-| MET | NOT DETECTED | 15 |
-| PDL1 | NOT DETECTED | 15 |
-| ROS1 | NOT DETECTED | 15 |
-| ALK | NOT DETECTED | 14 |
-| KRAS | NOT DETECTED | 13 |
-| EGFR | NOT DETECTED | 12 |
-| MET | NOT AMPLIFIED | 8 |
-| NTRK | NOT AMPLIFIED | 8 |
-| RET | NOT AMPLIFIED | 8 |
-| ROS1 | NOT AMPLIFIED | 8 |
-| BRAF | NOT ALTERED | 7 |
-| HER2 | NOT ALTERED | 7 |
-| HER2 | NOT AMPLIFIED | 7 |
-| PDL1 | NOT ALTERED | 7 |
-| PDL1 | NOT AMPLIFIED | 7 |
-| ROS1 | NOT ALTERED | 7 |
+| MMRMSH6 | Positive/Intact | 40 |
+| MMRMLH1 | Positive/Intact | 39 |
+| MMRMSH2 | Positive/Intact | 39 |
+| MMRPMS2 | Positive/Intact | 39 |
+| ALK | NOT ALTERED | 37 |
+| MMROVER | Proficient | 37 |
+| NTRK3 | NOT ALTERED | 37 |
+| MSISTAT | MSS | 36 |
+| MET | NOT ALTERED | 35 |
+| NTRK1 | NOT ALTERED | 35 |
+| NTRK2 | NOT ALTERED | 35 |
+| ERBB2 | NOT ALTERED | 34 |
+| KRAS | NOT ALTERED | 33 |
+| EGFR | NOT ALTERED | 31 |
+| RB1 | NOT ALTERED | 31 |
+| RET | NOT ALTERED | 31 |
+| ROS1 | NOT ALTERED | 29 |
+| PDL1TYPE | TPS | 24 |
+| LOHSUM | Low | 21 |
+| TP53 | NOT ALTERED | 21 |
 
 ---
 

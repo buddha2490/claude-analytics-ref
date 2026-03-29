@@ -3,9 +3,9 @@
 # Simulate EC (Exposure as Collected) domain for NPM-008 / XB010-101
 #
 # Inputs:
-#   cohort/output-data/ex.rds  — EX exposure spine
+#   output-data/sdtm/ex.rds  — EX exposure spine
 # Output:
-#   cohort/output-data/sdtm/ec.xpt
+#   output-data/sdtm/ec.xpt
 #
 # Structure:
 #   Oral subjects (EXROUTE == "ORAL"):  1 EC record per subject
@@ -19,7 +19,7 @@ set.seed(52)  # EC is domain order 10: 42 + 10 = 52
 
 # --- Load input data ----------------------------------------------------------
 
-ex <- readRDS("cohort/output-data/ex.rds")
+ex <- readRDS("output-data/sdtm/ex.rds")
 
 # --- Helper: parse first numeric value from dose text -------------------------
 # Handles "75", "500", "80", "75 + 10" etc. — takes the leading number.
@@ -178,6 +178,6 @@ print(summary(iv_counts$n))
 
 # --- Write XPT ---------------------------------------------------------------
 
-saveRDS(ec, "cohort/output-data/sdtm/ec.rds")
-haven::write_xpt(ec, "cohort/output-data/sdtm/ec.xpt")
-message("\nWritten to: cohort/output-data/sdtm/ec.xpt")
+saveRDS(ec, "output-data/sdtm/ec.rds")
+haven::write_xpt(ec, "output-data/sdtm/ec.xpt")
+message("\nWritten to: output-data/sdtm/ec.xpt")

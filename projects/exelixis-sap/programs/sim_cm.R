@@ -22,9 +22,11 @@ set.seed(42 + 11)  # 53 — CM is domain order 11
 
 # --- Paths -------------------------------------------------------------------
 
-dm_path  <- "cohort/output-data/dm.rds"
-ex_path  <- "cohort/output-data/ex.rds"
-xpt_path <- "cohort/output-data/sdtm/cm.xpt"
+dm_path  <- "output-data/sdtm/dm.rds"
+ex_path  <- "output-data/sdtm/ex.rds"
+lb_path  <- "output-data/sdtm/lb.rds"
+xpt_path <- "output-data/sdtm/cm.xpt"
+rds_path <- "output-data/sdtm/cm.rds"
 
 # --- Load input data ---------------------------------------------------------
 
@@ -36,6 +38,10 @@ dm <- readRDS(dm_path) %>%
 
 ex <- readRDS(ex_path) %>%
   dplyr::select(USUBJID, EXSTDTC, EXENDTC)
+
+lb <- readRDS(lb_path) %>%
+  dplyr::filter(LBTESTCD %in% c("EGFR", "ALK", "PDL1SUM")) %>%
+  dplyr::select(USUBJID, LBTESTCD, LBORRES)
 
 stopifnot(nrow(dm) == 40)
 stopifnot(nrow(ex) == 40)
@@ -344,7 +350,7 @@ attr(cm$CMRSDISC, "label") <- "Reason Medication Discontinued"
 # --- Write output -------------------------------------------------------------
 
 message("Writing cm.xpt ...")
-saveRDS(cm, "cohort/output-data/sdtm/cm.rds")
+saveRDS(cm, rds_path)
 haven::write_xpt(cm, path = xpt_path)
 
 message("Done. Rows written: ", nrow(cm))
@@ -354,35 +360,125 @@ message("Done. Rows written: ", nrow(cm))
 cat("\n=== VALIDATION ===\n")
 cat("Total CM records:", nrow(cm), "\n")
 
+# --- BLOCKING checks (must pass) ----------------------------------------------
+
 # CMSEQ unique per USUBJID
 cmseq_check <- cm %>%
   group_by(USUBJID) %>%
   summarise(n_seq = n_distinct(CMSEQ), n_rows = n(), .groups = "drop") %>%
   dplyr::filter(n_seq != n_rows)
 
-cat("CMSEQ unique per USUBJID (0 violations expected):", nrow(cmseq_check), "\n")
+if (nrow(cmseq_check) > 0) {
+  stop("BLOCKING: CMSEQ not unique per USUBJID for ", nrow(cmseq_check), " subjects",
+       call. = FALSE)
+}
+cat("✓ CMSEQ unique per USUBJID\n")
 
 # All USUBJID in DM
 missing_usubjid <- setdiff(unique(cm$USUBJID), dm$USUBJID)
-cat("USUBJID not in DM (0 expected):", length(missing_usubjid), "\n")
+if (length(missing_usubjid) > 0) {
+  stop("BLOCKING: ", length(missing_usubjid), " USUBJID not found in DM",
+       call. = FALSE)
+}
+cat("✓ All USUBJID exist in DM\n")
 
-# Prior LoT CMSTDTC < EXSTDTC
-prior_check <- cm %>%
+# All subjects have exactly n_prior_lots prior therapy records
+prior_lot_check <- cm %>%
+  dplyr::filter(CMCAT == "PRIOR MEDICATIONS") %>%
+  group_by(USUBJID) %>%
+  summarise(n_cm_lots = n(), .groups = "drop") %>%
+  dplyr::left_join(dplyr::select(dm, USUBJID, n_prior_lots), by = "USUBJID") %>%
+  dplyr::filter(n_cm_lots != n_prior_lots)
+
+if (nrow(prior_lot_check) > 0) {
+  stop("BLOCKING: ", nrow(prior_lot_check),
+       " subjects have mismatch between DM.n_prior_lots and CM prior therapy count",
+       call. = FALSE)
+}
+cat("✓ Prior LoT count matches DM.n_prior_lots for all subjects\n")
+
+# Prior LoT CMSTDTC < EXSTDTC (must be strictly before index)
+prior_date_check <- cm %>%
   dplyr::filter(CMCAT == "PRIOR MEDICATIONS") %>%
   dplyr::left_join(dplyr::select(subj, USUBJID, index_date), by = "USUBJID") %>%
   dplyr::filter(as.Date(CMSTDTC) >= index_date)
 
-cat("Prior LoT CMSTDTC >= EXSTDTC (0 expected):", nrow(prior_check), "\n")
+if (nrow(prior_date_check) > 0) {
+  stop("BLOCKING: ", nrow(prior_date_check),
+       " prior therapy records have CMSTDTC >= EXSTDTC",
+       call. = FALSE)
+}
+cat("✓ All prior therapy CMSTDTC < EXSTDTC\n")
 
 # Concomitant CMSTDTC >= EXSTDTC
-conmed_check <- cm %>%
+conmed_date_check <- cm %>%
   dplyr::filter(CMCAT == "CONCOMITANT MEDICATIONS") %>%
   dplyr::left_join(dplyr::select(subj, USUBJID, index_date), by = "USUBJID") %>%
   dplyr::filter(as.Date(CMSTDTC) < index_date)
 
-cat("Concomitant CMSTDTC < EXSTDTC (0 expected):", nrow(conmed_check), "\n")
+if (nrow(conmed_date_check) > 0) {
+  stop("BLOCKING: ", nrow(conmed_date_check),
+       " concomitant medication records have CMSTDTC < EXSTDTC",
+       call. = FALSE)
+}
+cat("✓ All concomitant medications CMSTDTC >= EXSTDTC\n")
 
-# Subject-level summaries
+# --- Genomic profile consistency (BLOCKING) -----------------------------------
+# Validate that 1L drug selection aligns with LB biomarker results
+
+# Pivot LB data for easier comparison
+lb_wide <- lb %>%
+  tidyr::pivot_wider(
+    id_cols = USUBJID,
+    names_from = LBTESTCD,
+    values_from = LBORRES
+  )
+
+# Get 1L drugs from CM
+first_line_drugs <- cm %>%
+  dplyr::filter(CMCAT == "PRIOR MEDICATIONS") %>%
+  group_by(USUBJID) %>%
+  dplyr::filter(as.Date(CMSTDTC) == min(as.Date(CMSTDTC))) %>%
+  dplyr::slice(1) %>%
+  ungroup() %>%
+  dplyr::select(USUBJID, first_line_drug = CMTRT)
+
+# Merge and check consistency
+genomic_check <- first_line_drugs %>%
+  dplyr::left_join(lb_wide, by = "USUBJID") %>%
+  dplyr::left_join(dplyr::select(dm, USUBJID, egfr_status, alk_status, pdl1_status),
+                   by = "USUBJID") %>%
+  mutate(
+    is_egfr_drug = first_line_drug %in% c("Osimertinib", "Erlotinib"),
+    is_alk_drug  = first_line_drug %in% c("Crizotinib", "Lorlatinib"),
+    # Check for inconsistencies
+    error = case_when(
+      # EGFR ALTERED subjects must get EGFR-targeted drug
+      EGFR == "ALTERED" & !is_egfr_drug ~
+        "EGFR ALTERED but received non-EGFR drug",
+      # ALK ALTERED subjects must get ALK-targeted drug (if not EGFR+)
+      ALK == "ALTERED" & EGFR != "ALTERED" & !is_alk_drug ~
+        "ALK ALTERED (no EGFR) but received non-ALK drug",
+      # EGFR/ALK drugs should not be given to non-altered patients
+      is_egfr_drug & EGFR != "ALTERED" ~
+        "Received EGFR drug but EGFR not ALTERED",
+      is_alk_drug & ALK != "ALTERED" ~
+        "Received ALK drug but ALK not ALTERED",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  dplyr::filter(!is.na(error))
+
+if (nrow(genomic_check) > 0) {
+  cat("\nBLOCKING: Genomic profile inconsistencies detected:\n")
+  print(dplyr::select(genomic_check, USUBJID, first_line_drug, EGFR, ALK, PDL1SUM, error))
+  stop("BLOCKING: ", nrow(genomic_check),
+       " subjects have inconsistent 1L drug selection vs biomarker status",
+       call. = FALSE)
+}
+cat("✓ 1L drug selection consistent with LB genomic profile\n")
+
+# --- Subject-level summaries --------------------------------------------------
 cat("\nRecords per CMCAT:\n")
 print(table(cm$CMCAT))
 
@@ -397,3 +493,5 @@ print(table(cm$CMRSDISC, useNA = "always"))
 
 cat("\nSample records (first 8):\n")
 print(dplyr::select(head(cm, 8), USUBJID, CMSEQ, CMTRT, CMCAT, CMSTDTC, CMENDTC))
+
+cat("\n=== VALIDATION COMPLETE: ALL CHECKS PASSED ===\n")

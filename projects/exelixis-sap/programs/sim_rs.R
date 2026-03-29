@@ -1,23 +1,42 @@
-# sim_rs.R
-# Simulate SDTM RS domain — Response Assessments (RECIST 1.1 visits + BOR)
-# NPM-008 / XB010-101 simulated data
-# Domain order: 16 → set.seed(58)
+# =============================================================================
+# sim_rs.R — Disease Response Assessments (RECIST 1.1 + Clinician BOR)
+# Study: NPM-008 / XB010-101 ECA
+# Seed: 42 + 16 = 58
+# Wave: 4
+# Dependencies: dm.rds, ex.rds, tr.rds
+# Expected rows: 120-400
+# Working directory: projects/exelixis-sap/
+# =============================================================================
 
-library(tidyverse)
-library(haven)
+suppressPackageStartupMessages({
+  library(conflicted)
+  library(tidyverse)
+  library(haven)
+  conflicts_prefer(dplyr::filter, .quiet = TRUE)
+})
 
 set.seed(58)
 
-# --- Load inputs --------------------------------------------------------------
+# --- Load dependencies -------------------------------------------------------
 
-dm_raw <- readRDS("cohort/output-data/dm.rds") %>%
+dm_full <- readRDS("output-data/sdtm/dm.rds")
+dm_raw <- dm_full %>%
   select(USUBJID, bor, pfs_days)
 
-ex_raw <- readRDS("cohort/output-data/ex.rds") %>%
+ex_raw <- readRDS("output-data/sdtm/ex.rds") %>%
   select(USUBJID, EXSTDTC)
 
-tr_raw <- readRDS("cohort/output-data/tr.rds") %>%
+tr_raw <- readRDS("output-data/sdtm/tr.rds") %>%
   select(USUBJID, VISITNUM, VISIT, TRSTRESN, TRDTC)
+
+# --- Load CT reference (if applicable) ----------------------------------------
+
+ct_ref <- readRDS("output-data/sdtm/ct_reference.rds")
+
+# --- Source validation functions ----------------------------------------------
+
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
 
 # --- Compute visit-level target lesion sums from TR ---------------------------
 
@@ -151,126 +170,186 @@ attr(rs$VISITNUM, "label") <- "Visit Number"
 attr(rs$VISIT,    "label") <- "Visit Name"
 attr(rs$RSDTC,    "label") <- "Date/Time of Response"
 
-# --- Write outputs ------------------------------------------------------------
+# --- Domain-specific validation closure ----------------------------------------
 
-saveRDS(rs, "cohort/output-data/sdtm/rs.rds")
-haven::write_xpt(rs, "cohort/output-data/sdtm/rs.xpt")
+domain_checks <- function(df, dm_ref) {
+  checks <- list()
+
+  # RS1: Every subject has exactly 1 CLINRES record
+  clinres_counts <- df %>%
+    dplyr::filter(RSTESTCD == "CLINRES") %>%
+    count(USUBJID)
+
+  one_clinres <- nrow(clinres_counts) == 40 && all(clinres_counts$n == 1)
+
+  checks[[length(checks) + 1]] <- list(
+    check_id = "RS1",
+    description = "Every subject has exactly 1 CLINRES record",
+    result = if (one_clinres) "PASS" else "FAIL",
+    detail = if (!one_clinres) {
+      sprintf("Found %d subjects with CLINRES records; expected 40 each with n=1", nrow(clinres_counts))
+    } else ""
+  )
+
+  # RS2: CLINRES RSORRES matches bor from DM for all 40 subjects
+  clinres_vs_dm <- df %>%
+    dplyr::filter(RSTESTCD == "CLINRES") %>%
+    select(USUBJID, RSORRES) %>%
+    left_join(dm_ref %>% select(USUBJID, bor), by = "USUBJID") %>%
+    mutate(match = RSORRES == bor)
+
+  bor_match <- all(clinres_vs_dm$match, na.rm = TRUE)
+  mismatches <- clinres_vs_dm %>% dplyr::filter(!match)
+
+  checks[[length(checks) + 1]] <- list(
+    check_id = "RS2",
+    description = "CLINRES RSORRES matches DM bor (all 40 subjects)",
+    result = if (bor_match) "PASS" else "FAIL",
+    detail = if (!bor_match) {
+      sprintf("%d mismatch(es): %s",
+              nrow(mismatches),
+              paste(head(mismatches$USUBJID, 3), collapse = ", "))
+    } else ""
+  )
+
+  # RS3: PR subjects have at least one RECIST visit with PR or CR
+  pr_subjs <- dm_ref %>% dplyr::filter(bor == "PR") %>% pull(USUBJID)
+
+  pr_check_results <- df %>%
+    dplyr::filter(USUBJID %in% pr_subjs, RSTESTCD == "RECIST") %>%
+    group_by(USUBJID) %>%
+    summarise(has_pr_or_cr = any(RSORRES %in% c("PR", "CR")), .groups = "drop")
+
+  pr_check <- all(pr_check_results$has_pr_or_cr)
+  pr_fail_subjs <- pr_check_results %>% dplyr::filter(!has_pr_or_cr)
+
+  checks[[length(checks) + 1]] <- list(
+    check_id = "RS3",
+    description = "PR subjects have ≥1 RECIST visit with PR or CR",
+    result = if (pr_check) "PASS" else "FAIL",
+    detail = if (!pr_check) {
+      sprintf("%d PR subject(s) missing PR/CR in RECIST: %s",
+              nrow(pr_fail_subjs),
+              paste(head(pr_fail_subjs$USUBJID, 3), collapse = ", "))
+    } else ""
+  )
+
+  # RS4: PD subjects with ≥2 RECIST visits must have at least one visit with PD
+  pd_subjs <- dm_ref %>% dplyr::filter(bor == "PD") %>% pull(USUBJID)
+
+  pd_recist_summary <- df %>%
+    dplyr::filter(USUBJID %in% pd_subjs, RSTESTCD == "RECIST") %>%
+    group_by(USUBJID) %>%
+    summarise(
+      n_recist = n(),
+      has_pd   = any(RSORRES == "PD"),
+      .groups  = "drop"
+    )
+
+  pd_multi_visit_fail <- pd_recist_summary %>%
+    dplyr::filter(n_recist >= 2, !has_pd)
+
+  pd_check <- nrow(pd_multi_visit_fail) == 0
+
+  pd_single_visit_n <- pd_recist_summary %>%
+    dplyr::filter(n_recist == 1) %>%
+    nrow()
+
+  checks[[length(checks) + 1]] <- list(
+    check_id = "RS4",
+    description = "PD subjects with ≥2 RECIST visits have imaging PD",
+    result = if (pd_check) "PASS" else "FAIL",
+    detail = if (!pd_check) {
+      sprintf("%d PD subject(s) with ≥2 visits lack imaging PD: %s",
+              nrow(pd_multi_visit_fail),
+              paste(head(pd_multi_visit_fail$USUBJID, 3), collapse = ", "))
+    } else {
+      sprintf("(%d early-progressor PD subjects have baseline-only RECIST)", pd_single_visit_n)
+    }
+  )
+
+  # RS5: NE subjects have only 1 RECIST record (baseline) + 1 CLINRES
+  ne_subjs <- dm_ref %>% dplyr::filter(bor == "NE") %>% pull(USUBJID)
+
+  ne_recist_counts <- df %>%
+    dplyr::filter(USUBJID %in% ne_subjs, RSTESTCD == "RECIST") %>%
+    count(USUBJID)
+
+  ne_check <- all(ne_recist_counts$n == 1)
+  ne_fail_subjs <- ne_recist_counts %>% dplyr::filter(n != 1)
+
+  checks[[length(checks) + 1]] <- list(
+    check_id = "RS5",
+    description = "NE subjects have only 1 RECIST record (baseline)",
+    result = if (ne_check) "PASS" else "FAIL",
+    detail = if (!ne_check) {
+      sprintf("%d NE subject(s) with unexpected RECIST count: %s",
+              nrow(ne_fail_subjs),
+              paste(head(ne_fail_subjs$USUBJID, 3), collapse = ", "))
+    } else ""
+  )
+
+  # RS6: RSSTRESC values follow RECIST 1.1 vocabulary
+  valid_recist_responses <- c("CR", "PR", "SD", "PD", "NE")
+  invalid_responses <- df %>%
+    dplyr::filter(RSTESTCD == "RECIST") %>%
+    dplyr::filter(!RSSTRESC %in% valid_recist_responses)
+
+  checks[[length(checks) + 1]] <- list(
+    check_id = "RS6",
+    description = "RSSTRESC values follow RECIST 1.1 vocabulary (CR/PR/SD/PD/NE)",
+    result = if (nrow(invalid_responses) == 0) "PASS" else "FAIL",
+    detail = if (nrow(invalid_responses) > 0) {
+      sprintf("%d invalid response value(s): %s",
+              nrow(invalid_responses),
+              paste(head(unique(invalid_responses$RSSTRESC), 3), collapse = ", "))
+    } else ""
+  )
+
+  checks
+}
+
+# --- Validate before writing ---------------------------------------------------
+
+validation <- validate_sdtm_domain(
+  domain_df      = rs,
+  domain_code    = "RS",
+  dm_ref         = dm_full,
+  expected_rows  = c(120, 400),
+  ct_reference   = NULL,  # No CT validation for RS (RECIST values are domain-specific)
+  domain_checks  = domain_checks
+)
+
+message(validation$summary)
+
+# --- Write output (only if validation passes) ---------------------------------
+
+haven::write_xpt(rs, path = "output-data/sdtm/rs.xpt")
+saveRDS(rs, "output-data/sdtm/rs.rds")
 
 message("RS domain written: ", nrow(rs), " records for ", n_distinct(rs$USUBJID), " subjects")
 message("  RECIST visit records : ", sum(rs$RSTESTCD == "RECIST"))
 message("  CLINRES records      : ", sum(rs$RSTESTCD == "CLINRES"))
 message("Files saved:")
-message("  cohort/output-data/sdtm/rs.rds")
-message("  cohort/output-data/sdtm/rs.xpt")
+message("  output-data/sdtm/rs.rds")
+message("  output-data/sdtm/rs.xpt")
 
-# --- Validation ---------------------------------------------------------------
+# --- Log result ---------------------------------------------------------------
 
-message("\n--- Validation ---")
-
-dm_all <- readRDS("cohort/output-data/dm.rds")
-
-# Check 1: all USUBJID in DM
-subj_in_dm <- all(rs$USUBJID %in% dm_all$USUBJID)
-message("Check 1 — All USUBJID in DM: ", subj_in_dm)
-stopifnot("FAIL: subjects in RS not in DM" = subj_in_dm)
-
-# Check 2: RSSEQ unique per USUBJID
-seq_unique <- rs %>%
-  group_by(USUBJID) %>%
-  summarise(n_seq = n(), n_distinct_seq = n_distinct(RSSEQ)) %>%
-  mutate(ok = n_seq == n_distinct_seq) %>%
-  pull(ok) %>%
-  all()
-message("Check 2 — RSSEQ unique per USUBJID: ", seq_unique)
-stopifnot("FAIL: RSSEQ not unique per USUBJID" = seq_unique)
-
-# Check 3: every subject has exactly 1 CLINRES record
-clinres_counts <- rs %>%
-  dplyr::filter(RSTESTCD == "CLINRES") %>%
-  count(USUBJID)
-one_clinres <- nrow(clinres_counts) == 40 && all(clinres_counts$n == 1)
-message("Check 3 — Every subject has exactly 1 CLINRES: ", one_clinres)
-stopifnot("FAIL: CLINRES count per subject is not exactly 1" = one_clinres)
-
-# Check 4: CLINRES RSORRES matches bor from DM for all 40 subjects
-clinres_vs_dm <- rs %>%
-  dplyr::filter(RSTESTCD == "CLINRES") %>%
-  select(USUBJID, RSORRES) %>%
-  left_join(dm_all %>% select(USUBJID, bor), by = "USUBJID") %>%
-  mutate(match = RSORRES == bor)
-bor_match <- all(clinres_vs_dm$match)
-message("Check 4 — CLINRES RSORRES matches DM bor (all 40): ", bor_match)
-if (!bor_match) {
-  message("  Mismatches:")
-  print(clinres_vs_dm %>% dplyr::filter(!match))
-}
-stopifnot("FAIL: CLINRES BOR does not match DM bor" = bor_match)
-
-# Check 5: PR subjects have at least one RECIST visit with PR or CR
-pr_subjs <- dm_all %>% dplyr::filter(bor == "PR") %>% pull(USUBJID)
-pr_check <- rs %>%
-  dplyr::filter(USUBJID %in% pr_subjs, RSTESTCD == "RECIST") %>%
-  group_by(USUBJID) %>%
-  summarise(has_pr_or_cr = any(RSORRES %in% c("PR", "CR"))) %>%
-  pull(has_pr_or_cr) %>%
-  all()
-message("Check 5 — PR subjects have ≥1 RECIST visit with PR or CR: ", pr_check)
-if (!pr_check) {
-  message("  PR subjects missing RECIST PR/CR:")
-  rs %>%
-    dplyr::filter(USUBJID %in% pr_subjs, RSTESTCD == "RECIST") %>%
-    group_by(USUBJID) %>%
-    summarise(responses = paste(RSORRES, collapse = ", ")) %>%
-    print()
-}
-stopifnot("FAIL: PR subject missing confirming RECIST response" = pr_check)
-
-# Check 6: PD subjects with ≥2 RECIST visits must have at least one visit with PD
-# Single-visit PD subjects are early progressors — PD is clinician-stated only (CLINRES)
-# The RECIST criteria require follow-up imaging; they cannot be met with baseline alone.
-pd_subjs <- dm_all %>% dplyr::filter(bor == "PD") %>% pull(USUBJID)
-
-pd_recist_summary <- rs %>%
-  dplyr::filter(USUBJID %in% pd_subjs, RSTESTCD == "RECIST") %>%
-  group_by(USUBJID) %>%
-  summarise(
-    n_recist = n(),
-    has_pd   = any(RSORRES == "PD"),
-    .groups  = "drop"
+log_sdtm_result(
+  domain_code       = "RS",
+  wave              = 4,
+  row_count         = nrow(rs),
+  col_count         = ncol(rs),
+  validation_result = validation,
+  notes             = c(
+    "RECIST 1.1 responses derived from TR tumor measurement trajectories",
+    "Clinician-stated BOR matches DM latent variable for all subjects",
+    "Early progressors (baseline-only RECIST) have PD in CLINRES only"
   )
+)
 
-# Subjects with ≥2 RECIST visits must confirm PD on imaging
-pd_multi_visit_fail <- pd_recist_summary %>%
-  dplyr::filter(n_recist >= 2, !has_pd)
-
-pd_check <- nrow(pd_multi_visit_fail) == 0
-
-pd_single_visit_n <- pd_recist_summary %>%
-  dplyr::filter(n_recist == 1) %>%
-  nrow()
-
-message("Check 6 — PD subjects with ≥2 RECIST visits have imaging PD: ", pd_check)
-message("  (", pd_single_visit_n, " early-progressor subjects have baseline-only RECIST; PD is CLINRES-only)")
-if (!pd_check) {
-  message("  PD subjects with ≥2 visits but no imaging PD:")
-  print(pd_multi_visit_fail)
-}
-stopifnot("FAIL: multi-visit PD subject missing RECIST PD response" = pd_check)
-
-# Check 7: NE subjects have only 1 RECIST record (baseline) + 1 CLINRES
-ne_subjs <- dm_all %>% dplyr::filter(bor == "NE") %>% pull(USUBJID)
-ne_recist_counts <- rs %>%
-  dplyr::filter(USUBJID %in% ne_subjs, RSTESTCD == "RECIST") %>%
-  count(USUBJID)
-ne_check <- all(ne_recist_counts$n == 1)
-message("Check 7 — NE subjects have only 1 RECIST record (baseline): ", ne_check)
-if (!ne_check) {
-  message("  NE subjects with unexpected RECIST counts:")
-  print(ne_recist_counts)
-}
-stopifnot("FAIL: NE subject has more than 1 RECIST record" = ne_check)
-
-message("\nAll validation checks PASSED.")
+message("sim_rs.R complete: ", nrow(rs), " rows written")
 
 # --- Summary preview ----------------------------------------------------------
 

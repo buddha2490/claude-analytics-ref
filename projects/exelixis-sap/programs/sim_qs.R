@@ -10,8 +10,8 @@
 #                 -  3 SC-consistent records (INCOME, EDUC, MARISTAT)
 #
 # Seed        : 55 (42 + 13; QS is domain order 13)
-# Input       : cohort/output-data/dm.rds
-# Output      : cohort/output-data/sdtm/qs.xpt
+# Input       : output-data/sdtm/dm.rds
+# Output      : output-data/sdtm/qs.rds, output-data/sdtm/qs.xpt
 # =============================================================================
 
 library(tidyverse)
@@ -21,7 +21,7 @@ library(haven)
 set.seed(55)
 
 # --- Load DM spine ------------------------------------------------------------
-dm <- readRDS("cohort/output-data/dm.rds")
+dm <- readRDS("output-data/sdtm/dm.rds")
 
 # Retain only the columns needed for QS derivation
 dm_spine <- dm %>%
@@ -210,9 +210,9 @@ qs_xpt <- qs_raw %>%
     domain = "QS"
   )
 
-output_path <- "cohort/output-data/sdtm/qs.xpt"
+output_path <- "output-data/sdtm/qs.xpt"
 
-saveRDS(qs_xpt, "cohort/output-data/sdtm/qs.rds")
+saveRDS(qs_xpt, "output-data/sdtm/qs.rds")
 xportr_write(qs_xpt, path = output_path)
 
 message("Written: ", output_path)

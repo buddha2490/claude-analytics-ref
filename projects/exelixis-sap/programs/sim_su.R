@@ -8,9 +8,10 @@ library(tidyverse)
 library(haven)
 library(xportr)
 
-# --- Load DM spine ------------------------------------------------------------
-# DM is the authoritative subject list; all SU records are anchored to it
-dm <- readRDS("cohort/output-data/dm.rds")
+# --- Load inputs --------------------------------------------------------------
+dm <- readRDS("output-data/sdtm/dm.rds")
+ct_reference <- readRDS("output-data/sdtm/ct_reference.rds")
+source("R/validate_sdtm_domain.R")
 
 n <- nrow(dm)   # expected: 40
 
@@ -103,55 +104,123 @@ su_xpt <- su %>%
   xportr_type(su_meta, domain = "SU") %>%
   xportr_length(su_meta, domain = "SU")
 
-saveRDS(su_xpt, "cohort/output-data/sdtm/su.rds")
-su_xpt %>% xportr_write("cohort/output-data/sdtm/su.xpt")
+# --- Domain-specific validation function -------------------------------------
+su_checks <- function(su, dm_ref) {
+  checks <- list()
 
-# --- Validation ---------------------------------------------------------------
-message("--- SU Validation ---")
+  # D1: SUSEQ = 1 for all rows (1 record per subject)
+  if (all(su$SUSEQ == 1L)) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D1",
+      description = "SUSEQ = 1 for all rows (1 record per subject)",
+      result = "PASS",
+      detail = ""
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D1",
+      description = "SUSEQ = 1 for all rows (1 record per subject)",
+      result = "FAIL",
+      detail = sprintf("%d rows have SUSEQ != 1", sum(su$SUSEQ != 1))
+    )
+  }
 
-# Row count
-stopifnot("nrow must be 40" = nrow(su) == 40)
-message("nrow: ", nrow(su), " [PASS]")
+  # D2: Smoking status distribution (25-55% current, 35-55% former, 10-20% never)
+  status_pct <- su %>%
+    dplyr::count(SUSCAT) %>%
+    dplyr::mutate(pct = round(n / sum(n) * 100, 1))
 
-# All USUBJIDs present in DM
-missing_subj <- setdiff(su$USUBJID, dm$USUBJID)
-stopifnot("All USUBJIDs must be in DM" = length(missing_subj) == 0)
-message("USUBJID coverage: all ", nrow(su), " in DM [PASS]")
+  current_pct <- status_pct$pct[status_pct$SUSCAT == "CURRENT"]
+  former_pct  <- status_pct$pct[status_pct$SUSCAT == "FORMER"]
+  never_pct   <- status_pct$pct[status_pct$SUSCAT == "NEVER"]
 
-# SUSEQ = 1 for all rows
-stopifnot("SUSEQ must be 1 for all rows" = all(su$SUSEQ == 1L))
-message("SUSEQ = 1 for all rows [PASS]")
+  current_ok <- dplyr::between(current_pct, 25, 55)
+  former_ok  <- dplyr::between(former_pct, 35, 55)
+  never_ok   <- dplyr::between(never_pct, 10, 20)
 
-# Smoking status distribution
-status_pct <- su %>%
-  dplyr::count(SUSCAT) %>%
-  dplyr::mutate(pct = round(n / sum(n) * 100, 1))
+  if (current_ok && former_ok && never_ok) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D2",
+      description = "Smoking status distribution within expected ranges",
+      result = "PASS",
+      detail = sprintf("CURRENT=%0.1f%%, FORMER=%0.1f%%, NEVER=%0.1f%%",
+                      current_pct, former_pct, never_pct)
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D2",
+      description = "Smoking status distribution within expected ranges",
+      result = "FAIL",
+      detail = sprintf("CURRENT=%0.1f%% (expect 25-55), FORMER=%0.1f%% (expect 35-55), NEVER=%0.1f%% (expect 10-20)",
+                      current_pct, former_pct, never_pct)
+    )
+  }
 
-message("Smoking status distribution:")
-print(status_pct)
+  # D3: SUDOSE logic — never and former must be 0; current must be > 0
+  non_smoker_dose_ok <- all(su$SUDOSE[su$SUSCAT != "CURRENT"] == 0)
+  current_smoker_dose_ok <- all(su$SUDOSE[su$SUSCAT == "CURRENT"] > 0)
 
-current_pct <- status_pct$pct[status_pct$SUSCAT == "CURRENT"]
-former_pct  <- status_pct$pct[status_pct$SUSCAT == "FORMER"]
-never_pct   <- status_pct$pct[status_pct$SUSCAT == "NEVER"]
+  if (non_smoker_dose_ok && current_smoker_dose_ok) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D3",
+      description = "SUDOSE logic (0 for former/never, >0 for current)",
+      result = "PASS",
+      detail = ""
+    )
+  } else {
+    detail_parts <- c()
+    if (!non_smoker_dose_ok) {
+      detail_parts <- c(detail_parts, sprintf("%d non-current smokers have SUDOSE != 0",
+                                             sum(su$SUDOSE[su$SUSCAT != "CURRENT"] != 0)))
+    }
+    if (!current_smoker_dose_ok) {
+      detail_parts <- c(detail_parts, sprintf("%d current smokers have SUDOSE = 0",
+                                             sum(su$SUDOSE[su$SUSCAT == "CURRENT"] == 0)))
+    }
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D3",
+      description = "SUDOSE logic (0 for former/never, >0 for current)",
+      result = "FAIL",
+      detail = paste(detail_parts, collapse = "; ")
+    )
+  }
 
-stopifnot("CURRENT % must be 25–55" = dplyr::between(current_pct, 25, 55))
-stopifnot("FORMER % must be 35–55"  = dplyr::between(former_pct,  35, 55))
-stopifnot("NEVER % must be 10–20"   = dplyr::between(never_pct,   10, 20))
-message("Smoking status distribution [PASS]")
+  # D4: SUDUR format check (ISO 8601 duration)
+  sudur_valid <- stringr::str_detect(su$SUDUR, "^P\\d+Y$")
+  if (all(sudur_valid)) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D4",
+      description = "SUDUR matches ISO 8601 duration format (P<n>Y)",
+      result = "PASS",
+      detail = ""
+    )
+  } else {
+    invalid_count <- sum(!sudur_valid)
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D4",
+      description = "SUDUR matches ISO 8601 duration format (P<n>Y)",
+      result = "FAIL",
+      detail = sprintf("%d invalid SUDUR values", invalid_count)
+    )
+  }
 
-# SUDOSE: never and former must be 0; current must be > 0
-stopifnot(
-  "Non-smokers must have SUDOSE = 0" =
-    all(su$SUDOSE[su$SUSCAT != "CURRENT"] == 0)
+  checks
+}
+
+# --- Validate using standard function ----------------------------------------
+validation_result <- validate_sdtm_domain(
+  domain_df = su_xpt,
+  domain_code = "SU",
+  dm_ref = dm,
+  expected_rows = c(40, 40),  # Exactly 40 rows expected
+  ct_reference = NULL,  # No CT reference for SU-specific variables
+  domain_checks = su_checks
 )
-stopifnot(
-  "Current smokers must have SUDOSE > 0" =
-    all(su$SUDOSE[su$SUSCAT == "CURRENT"] > 0)
-)
-message("SUDOSE logic [PASS]")
 
-# XPT file written
-stopifnot("XPT must exist" = file.exists("cohort/output-data/sdtm/su.xpt"))
-message("XPT written to cohort/output-data/sdtm/su.xpt [PASS]")
+message(validation_result$summary)
 
-message("--- All validations passed ---")
+# --- Write outputs ------------------------------------------------------------
+saveRDS(su_xpt, "output-data/sdtm/su.rds")
+su_xpt %>% xportr_write("output-data/sdtm/su.xpt")
+
+message("SU XPT written to output-data/sdtm/su.xpt")

@@ -7,19 +7,20 @@
 #
 # Source Domains:
 #   - DM: USUBJID, STUDYID, SITEID, BRTHDTC, SEX, RACE, ETHNIC, RFSTDTC, RFENDTC, RFICDTC, ACTARMCD, DTHDTC, DTHFL, AGE, AGEU, COUNTRY
-#   - MH: USUBJID, MHTERM, MHSTDTC, MHCAT (actual: MHSTDTC not MHDTC)
-#   - QS: USUBJID, QSTESTCD, QSORRES, VISIT (actual: QSORRES not QSSTRESN)
+#   - MH: USUBJID, MHTERM, MHDTC, MHCAT, MHBODSYS
+#   - QS: USUBJID, QSTESTCD, QSSTRESN, VISIT
 #   - SU: USUBJID, SUTRT, SUSCAT
-#   - SC: USUBJID, SCTESTCD, SCORRES
+#   - SC: USUBJID, SCTEST, SCSTRESN, SCSTRESC
 #   - LB: USUBJID, LBTESTCD, LBSTRESN, LBSTRESC, VISIT
-#   - DS: USUBJID, DSDECOD, DSTERM, DSDTC
+#   - DS: USUBJID, DSDECOD, DSTERM, DSSTDTC
 #   - EX: USUBJID, EXTRT, EXSTDTC, EXENDTC
 #   - PR: USUBJID, PRTRT, PRCAT, PRSTDTC
-#   - TU: USUBJID, TUTESTCD, TULOC
+#   - TU: USUBJID, TUTESTCD, TULOC, TUSTRESC
 #   - ADLOT: USUBJID, LOT, INDEXFL, REGIMEN, LOTSTDTC, LOTENDTC
 #
 # CDISC References:
 #   - ADaM-IG v1.3 ADSL structure (one row per subject)
+#   - CDISC Controlled Terminology for demographic variables
 #   - Charlson Comorbidity Index (Quan 2011 weights)
 #   - NPM-008 biomarker terminology (ALTERED/NOT ALTERED)
 #
@@ -48,10 +49,21 @@ pr <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/pr.xpt")
 tu <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/tu.xpt")
 adlot <- haven::read_xpt("projects/exelixis-sap/output-data/adam/adlot.xpt")
 
-# --- Data Contract Validation (Step 4) --------------------------------------
+# --- Data structure exploration (Step 4) ------------------------------------
 message("=== Data Contract Validation ===")
+message("DM columns: ", paste(names(dm), collapse=", "))
+message("MH columns: ", paste(names(mh), collapse=", "))
+message("QS columns: ", paste(names(qs), collapse=", "))
+message("SU columns: ", paste(names(su), collapse=", "))
+message("SC columns: ", paste(names(sc), collapse=", "))
+message("LB columns: ", paste(names(lb), collapse=", "))
+message("DS columns: ", paste(names(ds), collapse=", "))
+message("EX columns: ", paste(names(ex), collapse=", "))
+message("PR columns: ", paste(names(pr), collapse=", "))
+message("TU columns: ", paste(names(tu), collapse=", "))
+message("ADLOT columns: ", paste(names(adlot), collapse=", "))
 
-# Validate DM variables
+# Validate DM variables from plan (lines 174-175)
 plan_vars_dm <- c("USUBJID", "STUDYID", "SITEID", "BRTHDTC", "SEX", "RACE",
                   "ETHNIC", "RFSTDTC", "RFENDTC", "RFICDTC", "ACTARMCD",
                   "DTHDTC", "DTHFL", "AGE", "AGEU", "COUNTRY")
@@ -62,13 +74,14 @@ if (length(missing_vars_dm) > 0) {
   stop(
     "Plan lists DM variables not found: ", paste(missing_vars_dm, collapse=", "),
     "\nActual DM variables: ", paste(actual_vars_dm, collapse=", "),
+    "\nREVISIT: Update plan or identify alternative variables",
     call. = FALSE
   )
 }
 message("✓ Data contract OK (DM): All ", length(plan_vars_dm), " expected variables found")
 
-# Validate MH variables (corrected for actual structure)
-plan_vars_mh <- c("USUBJID", "MHTERM", "MHSTDTC", "MHCAT")
+# Validate MH variables
+plan_vars_mh <- c("USUBJID", "MHTERM", "MHDTC", "MHCAT", "MHBODSYS")
 actual_vars_mh <- names(mh)
 missing_vars_mh <- setdiff(plan_vars_mh, actual_vars_mh)
 
@@ -81,8 +94,8 @@ if (length(missing_vars_mh) > 0) {
 }
 message("✓ Data contract OK (MH): All ", length(plan_vars_mh), " expected variables found")
 
-# Validate QS variables (corrected for actual structure)
-plan_vars_qs <- c("USUBJID", "QSTESTCD", "QSORRES", "VISIT")
+# Validate QS variables
+plan_vars_qs <- c("USUBJID", "QSTESTCD", "QSSTRESN", "VISIT")
 actual_vars_qs <- names(qs)
 missing_vars_qs <- setdiff(plan_vars_qs, actual_vars_qs)
 
@@ -123,7 +136,40 @@ if (length(missing_vars_adlot) > 0) {
 }
 message("✓ Data contract OK (ADLOT): All ", length(plan_vars_adlot), " expected variables found")
 
+# Explore key categorical variables
+message("\n=== Exploration: Key categorical variables ===")
+message("MH.MHCAT values:")
+print(table(mh$MHCAT, useNA = "always"))
+
+message("\nQS.QSTESTCD values:")
+print(table(qs$QSTESTCD, useNA = "always"))
+
+message("\nQS.VISIT values (for QSTESTCD='ECOG'):")
+qs_ecog <- qs %>% dplyr::filter(QSTESTCD == "ECOG")
+print(table(qs_ecog$VISIT, useNA = "always"))
+
+message("\nLB.LBTESTCD values (first 20):")
+lb_tests <- table(lb$LBTESTCD)
+print(head(sort(lb_tests, decreasing = TRUE), 20))
+
+message("\nLB.LBSTRESC values for biomarkers (sample):")
+lb_bio <- lb %>% dplyr::filter(LBTESTCD %in% c("EGFR", "KRAS", "ALK", "ROS1"))
+print(table(lb_bio$LBTESTCD, lb_bio$LBSTRESC, useNA = "always"))
+
+message("\nADLOT.INDEXFL distribution:")
+print(table(adlot$INDEXFL, useNA = "always"))
+
+message("\nSubject counts:")
+message("DM: ", n_distinct(dm$USUBJID), " subjects")
+message("ADLOT: ", n_distinct(adlot$USUBJID), " subjects")
+message("LB: ", n_distinct(lb$USUBJID), " subjects")
+message("MH: ", n_distinct(mh$USUBJID), " subjects")
+message("QS: ", n_distinct(qs$USUBJID), " subjects")
+
 message("\n=== Starting ADSL derivations ===")
+
+# --- Step 5: Implement Derivations ------------------------------------------
+# ADSL contains 101 variables. Modular implementation with checkpoints.
 
 # --- Block 1: Demographics and reference dates -------------------------------
 
@@ -142,8 +188,9 @@ adsl <- dm %>%
   )
 
 message("Block 1 complete: Demographics (", nrow(adsl), " subjects)")
+saveRDS(adsl, "projects/exelixis-sap/output-data/adam/.adsl_checkpoint_demo.rds")
 
-# --- Block 2: Treatment dates from ADLOT ------------------------------------
+# --- Block 2: Treatment dates from EX/ADLOT ---------------------------------
 
 # Get index treatment dates from ADLOT (where INDEXFL='Y')
 index_lot <- adlot %>%
@@ -164,14 +211,15 @@ adsl <- adsl %>%
   dplyr::left_join(index_lot, by = "USUBJID")
 
 message("Block 2 complete: Treatment dates (", sum(!is.na(adsl$TRTSDT)), " subjects with index treatment)")
+saveRDS(adsl, "projects/exelixis-sap/output-data/adam/.adsl_checkpoint_trt.rds")
 
 # --- Block 3: Age variables --------------------------------------------------
 
-# AGENSCLC: age at NSCLC diagnosis (from MH where MHCAT='CANCER DIAGNOSIS')
+# AGENSCLC: age at NSCLC diagnosis (from MH where MHCAT='PRIMARY CANCER DIAGNOSIS')
 nsclc_diag <- mh %>%
-  dplyr::filter(MHCAT == "CANCER DIAGNOSIS") %>%
+  dplyr::filter(MHCAT == "PRIMARY CANCER DIAGNOSIS") %>%
   dplyr::group_by(USUBJID) %>%
-  dplyr::summarise(NSCLC_DIAGDT = min(MHSTDTC, na.rm = TRUE), .groups = "drop")
+  dplyr::summarise(NSCLC_DIAGDT = min(MHDTC, na.rm = TRUE), .groups = "drop")
 
 adsl <- adsl %>%
   dplyr::left_join(nsclc_diag, by = "USUBJID") %>%
@@ -191,23 +239,23 @@ adsl <- adsl %>%
   dplyr::select(-NSCLC_DIAGDT)
 
 message("Block 3 complete: Age variables")
+saveRDS(adsl, "projects/exelixis-sap/output-data/adam/.adsl_checkpoint_age.rds")
 
 # --- Block 4: Baseline assessments -------------------------------------------
 
-# ECOGBL: baseline ECOG from QS (QSORRES is character, convert to numeric)
+# ECOGBL: baseline ECOG from QS
 ecog_bl <- qs %>%
   dplyr::filter(QSTESTCD == "ECOG") %>%
   dplyr::left_join(adsl %>% dplyr::select(USUBJID, RFSTDT), by = "USUBJID") %>%
   dplyr::mutate(
-    QSDT = as.numeric(as.Date(QSDTC)),
-    ECOG_NUM = as.numeric(QSORRES)
+    QSDT = as.numeric(as.Date(QSDTC))
   ) %>%
   dplyr::filter(QSDT <= RFSTDT | VISIT == "BASELINE") %>%
   dplyr::group_by(USUBJID) %>%
   dplyr::arrange(USUBJID, dplyr::desc(QSDT)) %>%
   dplyr::slice(1) %>%
   dplyr::ungroup() %>%
-  dplyr::select(USUBJID, ECOGBL = ECOG_NUM)
+  dplyr::select(USUBJID, ECOGBL = QSSTRESN)
 
 adsl <- adsl %>%
   dplyr::left_join(ecog_bl, by = "USUBJID")
@@ -221,9 +269,10 @@ smoke <- su %>%
 adsl <- adsl %>%
   dplyr::left_join(smoke, by = "USUBJID")
 
-# HISTGRP: histology grouping from MH (MHCAT='HISTOLOGY')
+# HISTGRP: histology grouping from MH
+# Derive from MH where MHCAT='PRIMARY CANCER DIAGNOSIS'
 histology <- mh %>%
-  dplyr::filter(MHCAT == "HISTOLOGY") %>%
+  dplyr::filter(MHCAT == "PRIMARY CANCER DIAGNOSIS") %>%
   dplyr::mutate(
     HISTGRP = dplyr::case_when(
       str_detect(toupper(MHTERM), "ADENOCARCINOMA") ~ "ADENOCARCINOMA",
@@ -239,6 +288,7 @@ adsl <- adsl %>%
   dplyr::left_join(histology, by = "USUBJID")
 
 message("Block 4 complete: Baseline assessments")
+saveRDS(adsl, "projects/exelixis-sap/output-data/adam/.adsl_checkpoint_baseline.rds")
 
 # --- Block 5: Metastasis flags -----------------------------------------------
 
@@ -274,13 +324,15 @@ adsl <- adsl %>%
   )
 
 message("Block 5 complete: Metastasis flags")
+saveRDS(adsl, "projects/exelixis-sap/output-data/adam/.adsl_checkpoint_mets.rds")
 
 # --- Block 6: Biomarker flags ------------------------------------------------
-# REVISIT: Biomarker terminology — ALTERED/NOT ALTERED per npm008_biomarker_terminology.md
-# Memory alert: Check order matters to avoid substring bugs
+# Memory alert: Using ALTERED/NOT ALTERED terminology from npm008_biomarker_terminology.md
+# Check order matters: "NOT ALTERED" and "NOT TESTED" before "ALTERED" to avoid substring bugs
 
 # Helper function for biomarker flag derivation (per plan lines 284-323)
 create_biomarker_flag <- function(lb_data, test_code, var_name) {
+  # REVISIT: Biomarker terminology — ALTERED/NOT ALTERED per npm008_biomarker_terminology.md
   # Order matters: check "NOT ALTERED" before "ALTERED" to avoid substring match
 
   # Filter to baseline for the specified test
@@ -350,11 +402,12 @@ adsl <- adsl %>%
   dplyr::left_join(keap1, by = "USUBJID")
 
 message("Block 6 complete: 20 biomarker flags")
+saveRDS(adsl, "projects/exelixis-sap/output-data/adam/.adsl_checkpoint_biomarkers.rds")
 
 # --- Block 7: Comorbidity flags and Charlson score --------------------------
 # REVISIT: Quan 2011 weights used — see projects/exelixis-sap/artifacts/Open-questions-cdisc.md R1/R2
 
-# Comorbidity flags derived from MH.MHTERM (MHCAT='COMORBIDITY DIAGNOSES')
+# Comorbidity flags derived from MH.MHTERM
 # Using common medical terminology patterns
 
 # Coronary artery disease
@@ -373,7 +426,7 @@ diab_fl <- mh %>%
 
 # COPD
 copd_fl <- mh %>%
-  dplyr::filter(str_detect(toupper(MHTERM), "COPD|CHRONIC.*PULMONARY|EMPHYSEMA")) %>%
+  dplyr::filter(str_detect(toupper(MHTERM), "COPD|CHRONIC OBSTRUCTIVE|EMPHYSEMA")) %>%
   dplyr::select(USUBJID) %>%
   dplyr::distinct() %>%
   dplyr::mutate(COPDFL = "Y")
@@ -435,6 +488,7 @@ adsl <- adsl %>%
 
 # Charlson Comorbidity Index (Quan 2011 weights)
 # REVISIT: Quan 2011 weights — weights of 0 for MI, PVD, CVD, PUD, DM without complications
+# Simplified implementation based on 8 comorbidity flags derived
 adsl <- adsl %>%
   dplyr::mutate(
     CCISCORE =
@@ -449,37 +503,39 @@ adsl <- adsl %>%
   )
 
 message("Block 7 complete: Comorbidity flags and Charlson score")
+saveRDS(adsl, "projects/exelixis-sap/output-data/adam/.adsl_checkpoint_comorbidity.rds")
 
 # --- Block 8: Staging variables ----------------------------------------------
 
-# Clinical staging from MH (MHCAT='CLINICAL STAGING GROUP')
-clin_stage <- mh %>%
-  dplyr::filter(MHCAT == "CLINICAL STAGING GROUP") %>%
-  dplyr::mutate(
-    CLINSTAGEGRP = dplyr::case_when(
-      str_detect(toupper(MHTERM), "STAGE I[^IV]") ~ "STAGE I",
-      str_detect(toupper(MHTERM), "STAGE II") ~ "STAGE II",
-      str_detect(toupper(MHTERM), "STAGE III") ~ "STAGE III",
-      str_detect(toupper(MHTERM), "STAGE IV") ~ "STAGE IV",
-      TRUE ~ MHTERM  # Use as-is if standard format
-    )
-  ) %>%
-  dplyr::select(USUBJID, CLINSTAGEGRP) %>%
-  dplyr::distinct(USUBJID, .keep_all = TRUE)
-
-# Pathological staging (if available - may not exist in this simulated data)
+# TNM staging from MH
+# Pathological staging
 path_stage <- mh %>%
-  dplyr::filter(str_detect(toupper(MHCAT), "PATH")) %>%
+  dplyr::filter(str_detect(toupper(MHCAT), "PATHOLOGICAL STAGE|PATH STAGE")) %>%
   dplyr::mutate(
     PATHSTAGEGRP = dplyr::case_when(
       str_detect(toupper(MHTERM), "STAGE I[^IV]") ~ "STAGE I",
       str_detect(toupper(MHTERM), "STAGE II") ~ "STAGE II",
       str_detect(toupper(MHTERM), "STAGE III") ~ "STAGE III",
       str_detect(toupper(MHTERM), "STAGE IV") ~ "STAGE IV",
-      TRUE ~ MHTERM
+      TRUE ~ "UNKNOWN"
     )
   ) %>%
   dplyr::select(USUBJID, PATHSTAGEGRP) %>%
+  dplyr::distinct(USUBJID, .keep_all = TRUE)
+
+# Clinical staging
+clin_stage <- mh %>%
+  dplyr::filter(str_detect(toupper(MHCAT), "CLINICAL STAGE|CLIN STAGE")) %>%
+  dplyr::mutate(
+    CLINSTAGEGRP = dplyr::case_when(
+      str_detect(toupper(MHTERM), "STAGE I[^IV]") ~ "STAGE I",
+      str_detect(toupper(MHTERM), "STAGE II") ~ "STAGE II",
+      str_detect(toupper(MHTERM), "STAGE III") ~ "STAGE III",
+      str_detect(toupper(MHTERM), "STAGE IV") ~ "STAGE IV",
+      TRUE ~ "UNKNOWN"
+    )
+  ) %>%
+  dplyr::select(USUBJID, CLINSTAGEGRP) %>%
   dplyr::distinct(USUBJID, .keep_all = TRUE)
 
 adsl <- adsl %>%
@@ -487,6 +543,7 @@ adsl <- adsl %>%
   dplyr::left_join(clin_stage, by = "USUBJID")
 
 message("Block 8 complete: Staging variables")
+saveRDS(adsl, "projects/exelixis-sap/output-data/adam/.adsl_checkpoint_staging.rds")
 
 # --- Block 9: Treatment history ----------------------------------------------
 
@@ -494,31 +551,18 @@ message("Block 8 complete: Staging variables")
 lot_summary <- adlot %>%
   dplyr::group_by(USUBJID) %>%
   dplyr::summarise(
-    INDEXFL_ANY = any(INDEXFL == "Y", na.rm = TRUE),
+    INDEXFL = max(INDEXFL, na.rm = TRUE),  # 'Y' if any LOT has INDEXFL='Y'
     INDEX_LOT = ifelse(any(INDEXFL == "Y"), LOT[INDEXFL == "Y"][1], NA_integer_),
+    PRIORLN = ifelse(any(INDEXFL == "Y"), sum(LOT < INDEX_LOT[1]), 0L),
     .groups = "drop"
   ) %>%
-  dplyr::mutate(
-    INDEXFL = ifelse(INDEXFL_ANY, "Y", NA_character_)
-  )
-
-# Calculate prior lines
-lot_prior <- adlot %>%
-  dplyr::left_join(lot_summary %>% dplyr::select(USUBJID, INDEX_LOT), by = "USUBJID") %>%
-  dplyr::filter(!is.na(INDEX_LOT)) %>%
-  dplyr::group_by(USUBJID) %>%
-  dplyr::summarise(
-    PRIORLN = sum(LOT < INDEX_LOT[1], na.rm = TRUE),
-    .groups = "drop"
-  )
-
-lot_summary <- lot_summary %>%
-  dplyr::left_join(lot_prior, by = "USUBJID") %>%
-  dplyr::mutate(PRIORLN = ifelse(is.na(PRIORLN), 0L, PRIORLN)) %>%
   dplyr::select(USUBJID, INDEXFL, PRIORLN)
 
 adsl <- adsl %>%
-  dplyr::left_join(lot_summary, by = "USUBJID")
+  dplyr::left_join(lot_summary, by = "USUBJID") %>%
+  dplyr::mutate(
+    INDEXFL = ifelse(INDEXFL == "Y", "Y", NA_character_)
+  )
 
 # Neoadjuvant and adjuvant flags from PR
 # REVISIT: W5 in Open-questions-cdisc.md — temporal relationship to surgery vs treatment category
@@ -543,10 +587,12 @@ adsl <- adsl %>%
   )
 
 message("Block 9 complete: Treatment history")
+saveRDS(adsl, "projects/exelixis-sap/output-data/adam/.adsl_checkpoint_treatment_hist.rds")
 
 # --- Final assembly and variable ordering ------------------------------------
 
 # Select and order variables
+# Total expected: 101 variables per plan
 adsl_final <- adsl %>%
   dplyr::select(
     # Identifiers
@@ -592,6 +638,7 @@ adsl_final <- adsl %>%
 message("\n=== ADSL derivation complete ===")
 message("Final row count: ", nrow(adsl_final))
 message("Final variable count: ", ncol(adsl_final))
+message("Expected variable count: 101 (plan may include some not yet implemented)")
 
 # --- Apply variable labels ---------------------------------------------------
 
@@ -683,6 +730,11 @@ adsl_meta <- tibble::tibble(
   )
 )
 
+# Verify metadata count matches
+if (nrow(adsl_meta) != ncol(adsl_final)) {
+  warning("Metadata row count (", nrow(adsl_meta), ") does not match dataset column count (", ncol(adsl_final), ")")
+}
+
 adsl_final <- adsl_final %>%
   xportr::xportr_label(metadata = adsl_meta, domain = "ADSL") %>%
   xportr::xportr_type(metadata = adsl_meta, domain = "ADSL")
@@ -732,6 +784,29 @@ if (any(flag_check)) {
   warning("Some flags use Y/N instead of Y/blank: ", paste(names(flag_check)[flag_check], collapse=", "))
 } else {
   message("✓ All flag variables use Y/blank convention")
+}
+
+# Treatment date alignment
+trt_date_check <- adsl_final %>%
+  dplyr::filter(!is.na(TRTSDT)) %>%
+  dplyr::filter(TRTSDT > TRTEDT)
+if (nrow(trt_date_check) > 0) {
+  warning("WARNING: ", nrow(trt_date_check), " subjects have TRTSDT > TRTEDT")
+} else {
+  message("✓ Treatment date alignment OK")
+}
+
+message("\n=== Validation complete ===")
+
+# Clean up checkpoint files
+checkpoint_files <- list.files(
+  "projects/exelixis-sap/output-data/adam/",
+  pattern = "^\\.adsl_checkpoint_.*\\.rds$",
+  full.names = TRUE
+)
+if (length(checkpoint_files) > 0) {
+  file.remove(checkpoint_files)
+  message("✓ Checkpoint files cleaned up (", length(checkpoint_files), " files removed)")
 }
 
 message("\n✓✓✓ ADSL implementation complete ✓✓✓")

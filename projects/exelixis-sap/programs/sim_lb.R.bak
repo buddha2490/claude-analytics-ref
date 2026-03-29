@@ -66,7 +66,6 @@ lb_clinical <- dm %>%
     LBORRES = as.character(LBSTRESN),
     LBSTRESC = as.character(LBSTRESN),
     LBSTRESU = LBORRESU,
-    LBCAT = "BASELINE",
     VISIT = "BASELINE",
     # Lab drawn 5-21 days before RFSTDTC
     LBDTC = as.character(as.Date(RFSTDTC) - round(runif(n(), 5, 21)) - date_shift),
@@ -494,7 +493,6 @@ lb_genomic <- bind_rows(
   lb_cores
 ) %>%
   mutate(
-    LBCAT = "BASELINE",
     VISIT = "BASELINE",
     # Genomic testing drawn 30-90 days before RFSTDTC
     LBDTC = as.character(as.Date(RFSTDTC) - round(runif(n(), 30, 90)) - date_shift),
@@ -517,7 +515,7 @@ lb <- bind_rows(lb_clinical, lb_genomic) %>%
     LBBLFL = NA_character_
   ) %>%
   select(
-    STUDYID, DOMAIN, USUBJID, LBSEQ, LBTESTCD, LBTEST, LBCAT,
+    STUDYID, DOMAIN, USUBJID, LBSEQ, LBTESTCD, LBTEST, LBCAT = VISIT,
     LBORRES, LBORRESU, LBSTRESC, LBSTRESN, LBSTRESU, LBBLFL,
     LBNAM, LBSPEC, LBMETHOD, LBDTC, VISIT
   )

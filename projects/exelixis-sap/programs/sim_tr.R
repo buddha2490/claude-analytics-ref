@@ -3,14 +3,11 @@
 # Simulate SDTM TR (Tumor Results - Measurements) domain
 # NPM-008 / XB010-101 SDTM simulation project
 #
-# Inputs:
-#   cohort/output-data/dm.rds  -- DM spine with bor, pfs_days
-#   cohort/output-data/ex.rds  -- EX data (EXSTDTC = RFSTDTC)
-#   cohort/output-data/tu.rds  -- TU data (TULNKID, TUORRES per subject)
-#
-# Outputs:
-#   cohort/output-data/sdtm/tr.xpt  -- SDTM XPT for submission
-#   cohort/output-data/sdtm/tr.rds  -- RDS for downstream RS domain
+# Wave: 3
+# Seed: 42 + 15 = 57
+# Dependencies: dm.rds, tu.rds, ex.rds, ct_reference.rds
+# Expected rows: 400-1200
+# Working directory: projects/exelixis-sap/
 # =============================================================================
 
 library(tidyverse)
@@ -19,16 +16,14 @@ library(xportr)
 
 set.seed(57)  # TR is domain order 15: 42 + 15 = 57
 
-# --- Paths -------------------------------------------------------------------
-base_dir  <- "/Users/briancarter/Rdata/claude-analytics-ref/cohort"
-data_dir  <- file.path(base_dir, "output-data")
+# --- Load dependencies -------------------------------------------------------
+dm_full <- readRDS("output-data/sdtm/dm.rds")
 
-# --- Load inputs -------------------------------------------------------------
-dm <- readRDS(file.path(data_dir, "dm.rds")) %>%
+dm <- dm_full %>%
   dplyr::select(USUBJID, bor, pfs_days)
 
 # Use only first EX record per subject (start of treatment = RFSTDTC)
-ex <- readRDS(file.path(data_dir, "ex.rds")) %>%
+ex <- readRDS("output-data/sdtm/ex.rds") %>%
   dplyr::arrange(USUBJID, EXSTDTC) %>%
   dplyr::group_by(USUBJID) %>%
   dplyr::slice(1) %>%
@@ -36,13 +31,20 @@ ex <- readRDS(file.path(data_dir, "ex.rds")) %>%
   dplyr::select(USUBJID, EXSTDTC)
 
 # Target lesions only
-tu_target <- readRDS(file.path(data_dir, "tu.rds")) %>%
+tu_target <- readRDS("output-data/sdtm/tu.rds") %>%
   dplyr::filter(TUORRES == "TARGET") %>%
   dplyr::select(USUBJID, TULNKID)
 
 # Combine subject-level inputs
 subj <- dm %>%
   dplyr::left_join(ex, by = "USUBJID")
+
+# --- Load CT reference (not used for TR, but required for validation framework) ---
+ct_ref <- readRDS("output-data/sdtm/ct_reference.rds")
+
+# --- Source validation functions ----------------------------------------------
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
 
 # --- Visit schedule helper ---------------------------------------------------
 # Returns a tibble of (VISITNUM, VISIT, offset_days) for a subject's PFS window
@@ -85,6 +87,14 @@ build_visit_schedule <- function(pfs_days) {
   # Keep only visits within PFS window (visit date offset <= pfs_days)
   all_visits <- all_visits %>%
     dplyr::filter(offset_days <= pfs_days)
+
+  # Safety: ensure at least 2 visits (baseline + one follow-up) are included
+  # This prevents edge case where pfs_days < 42 leaves only baseline
+  if (nrow(all_visits) < 2) {
+    # Force inclusion of Week 6 even if PFS < 42
+    all_visits <- fixed_visits %>%
+      dplyr::filter(VISITNUM <= 2)
+  }
 
   all_visits
 }
@@ -166,21 +176,31 @@ simulate_subject_tr <- function(usubjid, bor, pfs_days, exstdtc_chr, tulnkids) {
 
   # --- RECIST constraint enforcement -----------------------------------------
 
-  # PR: sum at visit 2 must be <= 70% of baseline sum.
-  # Scale all lesions then nudge the largest down if rounding leaves sum > threshold.
+  # PR: minimum sum across all visits must be <= 70% of baseline sum.
+  # Find the visit with minimum sum and ensure it meets the threshold.
   if (bor == "PR" && n_visits >= 2) {
     baseline_sum <- sum(sizes[1, ])
     threshold    <- baseline_sum * 0.70
-    visit2_sum   <- sum(sizes[2, ])
-    if (visit2_sum > threshold && visit2_sum > 0) {
-      scale_factor   <- threshold / visit2_sum
-      sizes[2, ]     <- round(sizes[2, ] * scale_factor, 1)
-      # Nudge largest lesion down by 0.1mm until sum is within threshold
-      while (sum(sizes[2, ]) > threshold) {
-        largest_idx    <- which.max(sizes[2, ])
-        sizes[2, largest_idx] <- sizes[2, largest_idx] - 0.1
+
+    # Find visit with minimum sum
+    visit_sums   <- apply(sizes, 1, sum)
+    min_visit    <- which.min(visit_sums)
+    min_sum      <- visit_sums[min_visit]
+
+    # If minimum sum > threshold, force it down
+    # Use a more aggressive target (69.5% to ensure rounding doesn't push us over)
+    if (min_sum > threshold && min_sum > 0) {
+      aggressive_threshold <- baseline_sum * 0.695
+      scale_factor         <- aggressive_threshold / min_sum
+      sizes[min_visit, ]   <- round(sizes[min_visit, ] * scale_factor, 1)
+
+      # Verify we're actually below threshold after rounding
+      # If not, nudge down iteratively
+      while (sum(sizes[min_visit, ]) > threshold && max(sizes[min_visit, ]) > 0.1) {
+        largest_idx                   <- which.max(sizes[min_visit, ])
+        sizes[min_visit, largest_idx] <- pmax(0, sizes[min_visit, largest_idx] - 0.1)
       }
-      sizes[2, ] <- pmax(0, sizes[2, ])
+      sizes[min_visit, ] <- pmax(0, sizes[min_visit, ])
     }
   }
 
@@ -286,124 +306,233 @@ attr(tr$VISITNUM, "label") <- "Visit Number"
 attr(tr$VISIT,    "label") <- "Visit Name"
 attr(tr$TRDTC,    "label") <- "Date/Time of Assessment"
 
-# --- Save outputs ------------------------------------------------------------
-message("Writing tr.rds...")
-saveRDS(tr, file.path(data_dir, "tr.rds"))
+# --- Domain-specific validation closure ----------------------------------------
+domain_checks <- function(df, dm_ref) {
+  checks <- list()
 
-message("Writing tr.xpt...")
-haven::write_xpt(tr, file.path(data_dir, "tr.xpt"))
+  # D1: All TRLNKID values exist in TU for the same subject
+  tu_all <- readRDS("output-data/sdtm/tu.rds") %>%
+    dplyr::filter(TUORRES == "TARGET") %>%
+    dplyr::select(USUBJID, TULNKID)
 
-message("TR domain complete: ", nrow(tr), " records, ",
-        dplyr::n_distinct(tr$USUBJID), " subjects.")
+  lnkid_check <- df %>%
+    dplyr::select(USUBJID, TRLNKID) %>%
+    dplyr::distinct() %>%
+    dplyr::anti_join(
+      tu_all,
+      by = c("USUBJID" = "USUBJID", "TRLNKID" = "TULNKID")
+    )
 
-# --- Validation --------------------------------------------------------------
-message("\n--- Validation ---")
+  if (nrow(lnkid_check) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D1",
+      description = "All TRLNKID values exist in TU for the same subject",
+      result = "FAIL",
+      detail = sprintf("%d TRLNKID value(s) not found in TU", nrow(lnkid_check))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D1",
+      description = "All TRLNKID values exist in TU for the same subject",
+      result = "PASS",
+      detail = ""
+    )
+  }
 
-dm_ids <- dm$USUBJID
+  # D2: TRSTRESN >= 0 for all records
+  neg_count <- sum(df$TRSTRESN < 0, na.rm = TRUE)
+  if (neg_count > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D2",
+      description = "TRSTRESN >= 0 (no negative tumor measurements)",
+      result = "FAIL",
+      detail = sprintf("%d record(s) have negative TRSTRESN", neg_count)
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D2",
+      description = "TRSTRESN >= 0 (no negative tumor measurements)",
+      result = "PASS",
+      detail = ""
+    )
+  }
 
-# 1. All USUBJID in TR exist in DM
-tr_ids_check <- dplyr::setdiff(unique(tr$USUBJID), dm_ids)
-stopifnot(
-  "FAIL: TR contains USUBJIDs not in DM" = length(tr_ids_check) == 0
-)
-message("PASS: All TR USUBJIDs exist in DM")
+  # D3: PR subjects achieve <= 70% of baseline sum at some visit
+  pr_subjects <- dm_ref %>% dplyr::filter(bor == "PR") %>% dplyr::pull(USUBJID)
 
-# 2. TRSEQ unique per USUBJID
-trseq_check <- tr %>%
-  dplyr::group_by(USUBJID, TRSEQ) %>%
-  dplyr::filter(dplyr::n() > 1) %>%
-  nrow()
-stopifnot("FAIL: TRSEQ not unique within USUBJID" = trseq_check == 0)
-message("PASS: TRSEQ is unique within each USUBJID")
+  if (length(pr_subjects) > 0) {
+    pr_sums <- df %>%
+      dplyr::filter(USUBJID %in% pr_subjects) %>%
+      dplyr::group_by(USUBJID, VISITNUM) %>%
+      dplyr::summarise(sum_size = sum(TRSTRESN), .groups = "drop")
 
-# 3. All TRLNKID values exist in TU for the same subject
-lnkid_check <- tr %>%
-  dplyr::select(USUBJID, TRLNKID) %>%
-  dplyr::distinct() %>%
-  dplyr::anti_join(
-    tu_target %>% dplyr::select(USUBJID, TULNKID),
-    by = c("USUBJID" = "USUBJID", "TRLNKID" = "TULNKID")
-  ) %>%
-  nrow()
-stopifnot(
-  "FAIL: TR TRLNKID values not found in TU for matching USUBJID" = lnkid_check == 0
-)
-message("PASS: All TRLNKID values exist in TU for the same subject")
+    pr_baseline_sums <- pr_sums %>%
+      dplyr::filter(VISITNUM == 1) %>%
+      dplyr::select(USUBJID, baseline_sum = sum_size)
 
-# 4. PR subjects: minimum sum of target lesion sizes at any visit <= 70% of baseline
-pr_subjects <- dm %>% dplyr::filter(bor == "PR") %>% dplyr::pull(USUBJID)
+    pr_check <- pr_sums %>%
+      dplyr::left_join(pr_baseline_sums, by = "USUBJID") %>%
+      dplyr::group_by(USUBJID) %>%
+      dplyr::summarise(
+        min_pct = min(sum_size / baseline_sum),
+        .groups = "drop"
+      ) %>%
+      dplyr::filter(min_pct > 0.70)
 
-if (length(pr_subjects) > 0) {
-  pr_sums <- tr %>%
-    dplyr::filter(USUBJID %in% pr_subjects) %>%
-    dplyr::group_by(USUBJID, VISITNUM) %>%
-    dplyr::summarise(sum_size = sum(TRSTRESN), .groups = "drop")
+    if (nrow(pr_check) > 0) {
+      checks[[length(checks) + 1]] <- list(
+        check_id = "D3",
+        description = "PR subjects achieve <= 70% of baseline sum (RECIST PR criteria)",
+        result = "FAIL",
+        detail = sprintf("%d PR subject(s) never achieve <= 70%% threshold", nrow(pr_check))
+      )
+    } else {
+      checks[[length(checks) + 1]] <- list(
+        check_id = "D3",
+        description = "PR subjects achieve <= 70% of baseline sum (RECIST PR criteria)",
+        result = "PASS",
+        detail = ""
+      )
+    }
+  }
 
-  pr_baseline_sums <- pr_sums %>%
-    dplyr::filter(VISITNUM == 1) %>%
-    dplyr::select(USUBJID, baseline_sum = sum_size)
+  # D4: PD subjects meet PD RECIST criteria (>=120% nadir AND >=5mm increase)
+  pd_subjects <- dm_ref %>% dplyr::filter(bor == "PD") %>% dplyr::pull(USUBJID)
 
-  pr_check <- pr_sums %>%
-    dplyr::left_join(pr_baseline_sums, by = "USUBJID") %>%
+  if (length(pd_subjects) > 0) {
+    pd_check <- purrr::map_lgl(pd_subjects, function(subj_id) {
+      subj_sums <- df %>%
+        dplyr::filter(USUBJID == subj_id) %>%
+        dplyr::group_by(VISITNUM) %>%
+        dplyr::summarise(sum_size = sum(TRSTRESN), .groups = "drop") %>%
+        dplyr::arrange(VISITNUM)
+
+      if (nrow(subj_sums) < 2) return(TRUE)  # Only baseline, skip
+
+      nadir <- cummin(subj_sums$sum_size)
+      any(
+        subj_sums$sum_size >= nadir * 1.20 &
+          subj_sums$sum_size >= nadir + 5 &
+          subj_sums$VISITNUM > 1
+      )
+    })
+
+    n_fail <- sum(!pd_check)
+    if (n_fail > 0) {
+      checks[[length(checks) + 1]] <- list(
+        check_id = "D4",
+        description = "PD subjects meet PD RECIST criteria (>=120% nadir, >=5mm increase)",
+        result = "FAIL",
+        detail = sprintf("%d PD subject(s) never meet PD RECIST criteria", n_fail)
+      )
+    } else {
+      checks[[length(checks) + 1]] <- list(
+        check_id = "D4",
+        description = "PD subjects meet PD RECIST criteria (>=120% nadir, >=5mm increase)",
+        result = "PASS",
+        detail = ""
+      )
+    }
+  }
+
+  # D5: NE subjects have only baseline visit
+  ne_subjects <- dm_ref %>% dplyr::filter(bor == "NE") %>% dplyr::pull(USUBJID)
+
+  if (length(ne_subjects) > 0) {
+    ne_visit_check <- df %>%
+      dplyr::filter(USUBJID %in% ne_subjects) %>%
+      dplyr::group_by(USUBJID) %>%
+      dplyr::summarise(n_visits = dplyr::n_distinct(VISITNUM), .groups = "drop") %>%
+      dplyr::filter(n_visits > 1)
+
+    if (nrow(ne_visit_check) > 0) {
+      checks[[length(checks) + 1]] <- list(
+        check_id = "D5",
+        description = "NE subjects have only baseline visit",
+        result = "FAIL",
+        detail = sprintf("%d NE subject(s) have more than 1 visit", nrow(ne_visit_check))
+      )
+    } else {
+      checks[[length(checks) + 1]] <- list(
+        check_id = "D5",
+        description = "NE subjects have only baseline visit",
+        result = "PASS",
+        detail = ""
+      )
+    }
+  }
+
+  # D6: Measurement dates within or near treatment period
+  ex_dates <- readRDS("output-data/sdtm/ex.rds") %>%
     dplyr::group_by(USUBJID) %>%
     dplyr::summarise(
-      min_pct = min(sum_size / baseline_sum),
+      rfstdtc = min(EXSTDTC, na.rm = TRUE),
       .groups = "drop"
-    ) %>%
-    dplyr::filter(min_pct > 0.70)
-
-  stopifnot(
-    "FAIL: Some PR subjects never achieve <= 70% of baseline sum" = nrow(pr_check) == 0
-  )
-  message("PASS: All PR subjects achieve <= 70% of baseline sum at some visit")
-}
-
-# 5. PD subjects: at some visit, sum >= 120% of nadir AND >= 5mm increase
-pd_subjects <- dm %>% dplyr::filter(bor == "PD") %>% dplyr::pull(USUBJID)
-
-if (length(pd_subjects) > 0) {
-  pd_check <- purrr::map_lgl(pd_subjects, function(subj_id) {
-    subj_sums <- tr %>%
-      dplyr::filter(USUBJID == subj_id) %>%
-      dplyr::group_by(VISITNUM) %>%
-      dplyr::summarise(sum_size = sum(TRSTRESN), .groups = "drop") %>%
-      dplyr::arrange(VISITNUM)
-
-    if (nrow(subj_sums) < 2) return(TRUE)  # Only baseline, skip
-
-    nadir <- cummin(subj_sums$sum_size)
-    any(
-      subj_sums$sum_size >= nadir * 1.20 &
-        subj_sums$sum_size >= nadir + 5 &
-        subj_sums$VISITNUM > 1
     )
-  })
 
-  n_fail <- sum(!pd_check)
-  stopifnot("FAIL: Some PD subjects never meet PD RECIST criteria" = n_fail == 0)
-  message("PASS: All PD subjects meet PD RECIST criteria (>=120% nadir, >=5mm increase)")
+  dm_pfs <- dm_ref %>%
+    dplyr::select(USUBJID, pfs_days)
+
+  date_check <- df %>%
+    dplyr::left_join(ex_dates, by = "USUBJID") %>%
+    dplyr::left_join(dm_pfs, by = "USUBJID") %>%
+    dplyr::mutate(
+      trdtc_date = as.Date(TRDTC),
+      rfstdtc_date = as.Date(rfstdtc),
+      days_from_rfst = as.numeric(trdtc_date - rfstdtc_date)
+    ) %>%
+    dplyr::filter(days_from_rfst < -35 | days_from_rfst > (pfs_days + 35))  # Allow ±35 day window
+
+  if (nrow(date_check) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D6",
+      description = "Measurement dates within reasonable window of treatment period",
+      result = "WARNING",
+      detail = sprintf("%d record(s) outside expected date range", nrow(date_check))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D6",
+      description = "Measurement dates within reasonable window of treatment period",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  checks
 }
 
-# 6. NE subjects: only 1 visit (baseline) in TR
-ne_subjects <- dm %>% dplyr::filter(bor == "NE") %>% dplyr::pull(USUBJID)
+# --- Validate before writing ---------------------------------------------------
+validation <- validate_sdtm_domain(
+  domain_df      = tr,
+  domain_code    = "TR",
+  dm_ref         = dm_full,
+  expected_rows  = c(400, 1200),
+  ct_reference   = NULL,  # No CT for TR
+  domain_checks  = domain_checks
+)
 
-if (length(ne_subjects) > 0) {
-  ne_visit_check <- tr %>%
-    dplyr::filter(USUBJID %in% ne_subjects) %>%
-    dplyr::group_by(USUBJID) %>%
-    dplyr::summarise(n_visits = dplyr::n_distinct(VISITNUM), .groups = "drop") %>%
-    dplyr::filter(n_visits > 1)
-  stopifnot(
-    "FAIL: NE subjects have more than 1 visit in TR" = nrow(ne_visit_check) == 0
+message(validation$summary)
+
+# --- Write output (only if validation passes) ---------------------------------
+message("Writing tr.rds...")
+saveRDS(tr, "output-data/sdtm/tr.rds")
+
+message("Writing tr.xpt...")
+haven::write_xpt(tr, "output-data/sdtm/tr.xpt")
+
+# --- Log result ---------------------------------------------------------------
+log_sdtm_result(
+  domain_code       = "TR",
+  wave              = 3,
+  row_count         = nrow(tr),
+  col_count         = ncol(tr),
+  validation_result = validation,
+  notes             = c(
+    "Lesion size trajectories driven by BOR from DM latent",
+    "RECIST constraints enforced: PR <= 70% baseline, PD >= 120% nadir + 5mm",
+    "Visit schedule: baseline + every 6 weeks until PFS event"
   )
-  message("PASS: NE subjects have only baseline visit in TR")
-}
+)
 
-# 7. TRSTRESN >= 0 for all records
-neg_check <- sum(tr$TRSTRESN < 0, na.rm = TRUE)
-stopifnot("FAIL: Some TRSTRESN values are negative" = neg_check == 0)
-message("PASS: All TRSTRESN values are >= 0")
-
-message("\nAll validations passed. TR domain saved to:\n  ",
-        file.path(data_dir, "tr.rds"), "\n  ",
-        file.path(data_dir, "tr.xpt"))
+message("sim_tr.R complete: ", nrow(tr), " rows written")

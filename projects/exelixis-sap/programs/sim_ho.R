@@ -1,27 +1,38 @@
 # =============================================================================
-# sim_ho.R
-# Study: NPM-008 / XB010-101
-# Domain: HO — Healthcare Encounters (Hospitalizations)
-# Description: Simulate one HO record per AE where AESHOSP == "Y".
-#              Source: ae.rds filtered to hospitalized AEs.
+# sim_ho.R — Healthcare Encounters (Hospitalizations)
+# Study: NPM-008 / XB010-101 ECA
+# Seed: 42 + 18 = 60
+# Wave: 3
+# Dependencies: dm.rds, ae.rds
+# Expected rows: 20-60
+# Working directory: projects/exelixis-sap/
 # =============================================================================
+
+set.seed(60)
 
 library(tidyverse)
 library(haven)
 
-# set.seed: domain order 18, per project convention (seed = 42 + 18 = 60)
-set.seed(60)
+# --- Load dependencies -------------------------------------------------------
 
-# --- Load inputs --------------------------------------------------------------
+dm_full <- readRDS("output-data/sdtm/dm.rds")
+ae_full <- readRDS("output-data/sdtm/ae.rds")
 
-ae <- readRDS("cohort/output-data/ae.rds")
-dm <- readRDS("cohort/output-data/dm.rds")
+# --- Load CT reference -------------------------------------------------------
 
-# --- Filter to hospitalized AEs ----------------------------------------------
+ct_ref <- readRDS("output-data/sdtm/ct_reference.rds")
 
-ae_hosp <- ae %>%
+# --- Source validation functions ---------------------------------------------
+
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
+
+# --- Generate domain data ----------------------------------------------------
+
+# Filter to hospitalized AEs (AESHOSP == "Y")
+ae_hosp <- ae_full %>%
   dplyr::filter(AESHOSP == "Y") %>%
-  dplyr::select(USUBJID, AESEQ, AESTDTC)
+  dplyr::select(USUBJID, AESEQ, AESTDTC, AESER)
 
 message("Hospitalized AE records: ", nrow(ae_hosp))
 
@@ -42,7 +53,7 @@ ae_hosp <- ae_hosp %>%
 
 # --- Build HO domain ----------------------------------------------------------
 
-ho <- ae_hosp %>%
+ho_df <- ae_hosp %>%
   dplyr::arrange(USUBJID, AESEQ) %>%
   dplyr::group_by(USUBJID) %>%
   dplyr::mutate(
@@ -64,66 +75,158 @@ ho <- ae_hosp %>%
 
 # --- Apply variable labels ---------------------------------------------------
 
-attr(ho$STUDYID, "label") <- "Study Identifier"
-attr(ho$DOMAIN,  "label") <- "Domain Abbreviation"
-attr(ho$USUBJID, "label") <- "Unique Subject Identifier"
-attr(ho$HOSEQ,   "label") <- "Sequence Number"
-attr(ho$HOTERM,  "label") <- "Healthcare Encounter Term"
-attr(ho$HOSTDTC, "label") <- "Start Date/Time of Encounter"
-attr(ho$HOENDTC, "label") <- "End Date/Time of Encounter"
-attr(ho$HOHNKID, "label") <- "Link to Related AE Sequence Number"
+attr(ho_df$STUDYID, "label") <- "Study Identifier"
+attr(ho_df$DOMAIN,  "label") <- "Domain Abbreviation"
+attr(ho_df$USUBJID, "label") <- "Unique Subject Identifier"
+attr(ho_df$HOSEQ,   "label") <- "Sequence Number"
+attr(ho_df$HOTERM,  "label") <- "Healthcare Encounter Term"
+attr(ho_df$HOSTDTC, "label") <- "Start Date/Time of Encounter"
+attr(ho_df$HOENDTC, "label") <- "End Date/Time of Encounter"
+attr(ho_df$HOHNKID, "label") <- "Link to Related AE Sequence Number"
 
-# --- Validation --------------------------------------------------------------
+# --- Domain-specific validation closure --------------------------------------
 
-message("--- Validation ---")
+domain_checks <- function(df, dm_ref) {
+  checks <- list()
 
-# 1. Row count matches expected hospitalized AE records
-n_expected <- sum(ae$AESHOSP == "Y", na.rm = TRUE)
-stopifnot("Row count mismatch" = nrow(ho) == n_expected)
-message("PASS nrow == ", n_expected)
+  # D1: Every HOHNKID maps to valid AESEQ in AE domain
+  ae_seq_valid <- ae_full %>%
+    dplyr::select(USUBJID, AESEQ) %>%
+    dplyr::mutate(AESEQ_char = as.character(AESEQ))
 
-# 2. All USUBJID exist in DM
-missing_subj <- setdiff(ho$USUBJID, dm$USUBJID)
-stopifnot("USUBJID not in DM" = length(missing_subj) == 0)
-message("PASS all USUBJID in DM")
+  ho_ae_join <- df %>%
+    dplyr::left_join(ae_seq_valid, by = c("USUBJID", "HOHNKID" = "AESEQ_char"))
 
-# 3. HOSEQ unique within USUBJID
-dupes <- ho %>%
-  dplyr::count(USUBJID, HOSEQ) %>%
-  dplyr::filter(n > 1)
-stopifnot("HOSEQ not unique per USUBJID" = nrow(dupes) == 0)
-message("PASS HOSEQ unique per USUBJID")
+  missing_ae <- ho_ae_join %>%
+    dplyr::filter(is.na(AESEQ))
 
-# 4. HOSTDTC >= AESTDTC for all records
-date_check <- ae_hosp %>%
-  dplyr::select(USUBJID, AESEQ, AESTDTC, HOSTDTC) %>%
-  dplyr::filter(as.Date(HOSTDTC) < as.Date(AESTDTC))
-stopifnot("HOSTDTC precedes AESTDTC" = nrow(date_check) == 0)
-message("PASS HOSTDTC >= AESTDTC for all records")
+  if (nrow(missing_ae) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D1",
+      description = "Every HOHNKID maps to valid AESEQ in AE domain",
+      result = "FAIL",
+      detail = sprintf("%d HO record(s) with invalid HOHNKID", nrow(missing_ae))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D1",
+      description = "Every HOHNKID maps to valid AESEQ in AE domain",
+      result = "PASS",
+      detail = ""
+    )
+  }
 
-# 5. HOENDTC > HOSTDTC for all records
-end_check <- ho %>%
-  dplyr::filter(as.Date(HOENDTC) <= as.Date(HOSTDTC))
-stopifnot("HOENDTC not after HOSTDTC" = nrow(end_check) == 0)
-message("PASS HOENDTC > HOSTDTC for all records")
+  # D2: HOSTDTC >= AESTDTC (hospitalization starts on or after AE onset)
+  ae_dates <- ae_full %>%
+    dplyr::select(USUBJID, AESEQ, AESTDTC) %>%
+    dplyr::mutate(AESEQ_char = as.character(AESEQ))
 
-# 6. No missing values in key variables
-key_vars <- c("STUDYID","DOMAIN","USUBJID","HOSEQ","HOTERM","HOSTDTC","HOENDTC","HOHNKID")
-na_check <- ho %>%
-  dplyr::select(dplyr::all_of(key_vars)) %>%
-  dplyr::summarise(dplyr::across(dplyr::everything(), ~ sum(is.na(.)))) %>%
-  tidyr::pivot_longer(dplyr::everything()) %>%
-  dplyr::filter(value > 0)
-stopifnot("Missing values in key variables" = nrow(na_check) == 0)
-message("PASS no missing values in key variables")
+  ho_date_check <- df %>%
+    dplyr::left_join(ae_dates, by = c("USUBJID", "HOHNKID" = "AESEQ_char")) %>%
+    dplyr::filter(!is.na(AESTDTC)) %>%
+    dplyr::mutate(
+      date_violation = as.Date(HOSTDTC) < as.Date(AESTDTC)
+    )
 
-# --- Preview -----------------------------------------------------------------
+  date_violations <- ho_date_check %>%
+    dplyr::filter(date_violation)
 
-message("\n--- HO dataset preview ---")
-print(ho)
+  if (nrow(date_violations) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D2",
+      description = "HOSTDTC >= AESTDTC (hospitalization on/after AE onset)",
+      result = "FAIL",
+      detail = sprintf("%d record(s) where HOSTDTC < AESTDTC", nrow(date_violations))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D2",
+      description = "HOSTDTC >= AESTDTC (hospitalization on/after AE onset)",
+      result = "PASS",
+      detail = ""
+    )
+  }
 
-# --- Write XPT ---------------------------------------------------------------
+  # D3: Only serious AEs (AESER="Y") trigger hospitalizations
+  ae_ser <- ae_full %>%
+    dplyr::select(USUBJID, AESEQ, AESER, AESHOSP) %>%
+    dplyr::mutate(AESEQ_char = as.character(AESEQ))
 
-saveRDS(ho, "cohort/output-data/sdtm/ho.rds")
-haven::write_xpt(ho, "cohort/output-data/sdtm/ho.xpt")
-message("XPT written to: cohort/output-data/sdtm/ho.xpt")
+  ho_ser_check <- df %>%
+    dplyr::left_join(ae_ser, by = c("USUBJID", "HOHNKID" = "AESEQ_char"))
+
+  # Should only have AESHOSP="Y" AEs
+  non_hosp_ae <- ho_ser_check %>%
+    dplyr::filter(is.na(AESHOSP) | AESHOSP != "Y")
+
+  if (nrow(non_hosp_ae) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D3",
+      description = "Only AEs with AESHOSP='Y' trigger hospitalizations",
+      result = "FAIL",
+      detail = sprintf("%d HO record(s) linked to non-hospitalized AEs", nrow(non_hosp_ae))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D3",
+      description = "Only AEs with AESHOSP='Y' trigger hospitalizations",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # D4: HOENDTC > HOSTDTC for all records
+  end_violations <- df %>%
+    dplyr::filter(as.Date(HOENDTC) <= as.Date(HOSTDTC))
+
+  if (nrow(end_violations) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D4",
+      description = "HOENDTC > HOSTDTC for all records",
+      result = "FAIL",
+      detail = sprintf("%d record(s) where HOENDTC <= HOSTDTC", nrow(end_violations))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "D4",
+      description = "HOENDTC > HOSTDTC for all records",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  checks
+}
+
+# --- Validate before writing -------------------------------------------------
+
+validation <- validate_sdtm_domain(
+  domain_df      = ho_df,
+  domain_code    = "HO",
+  dm_ref         = dm_full,
+  expected_rows  = c(20, 60),
+  ct_reference   = NULL,
+  domain_checks  = domain_checks
+)
+
+message(validation$summary)
+
+# --- Write output (only if validation passes) --------------------------------
+
+haven::write_xpt(ho_df, path = "output-data/sdtm/ho.xpt")
+saveRDS(ho_df, "output-data/sdtm/ho.rds")
+
+message("XPT written to: output-data/sdtm/ho.xpt")
+
+# --- Log result --------------------------------------------------------------
+
+log_sdtm_result(
+  domain_code       = "HO",
+  wave              = 3,
+  row_count         = nrow(ho_df),
+  col_count         = ncol(ho_df),
+  validation_result = validation,
+  notes             = c("One HO record per AESHOSP='Y' AE", "HOHNKID links to AESEQ")
+)
+
+message("sim_ho.R complete: ", nrow(ho_df), " rows written")

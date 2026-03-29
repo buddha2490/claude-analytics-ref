@@ -7,12 +7,16 @@
 # Seed:      set.seed(44) — domain offset 2 from base seed 42
 # Author:    r-clinical-programmer agent
 # Date:      2026-03-27
+# Updated:   2026-03-28 — Integrated validation functions
 # =============================================================================
 
 library(tidyverse)
 library(haven)
 library(xportr)
 
+# Source validation functions
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
 
 set.seed(44)
 
@@ -20,7 +24,8 @@ set.seed(44)
 # --- Constants ---------------------------------------------------------------
 
 STUDYID    <- "NPM008"
-OUTPUT_DIR <- "cohort/output-data"
+OUTPUT_DIR <- "output-data/sdtm"
+WAVE       <- 1L
 
 # Inclusion/exclusion criteria lookup table
 ie_criteria <- tribble(
@@ -38,9 +43,10 @@ ie_criteria <- tribble(
 )
 
 
-# --- Read DM spine -----------------------------------------------------------
+# --- Read DM spine and CT reference ------------------------------------------
 
 dm <- readRDS(file.path(OUTPUT_DIR, "dm.rds"))
+ct_reference <- readRDS(file.path(OUTPUT_DIR, "ct_reference.rds"))
 
 
 # --- Build IE dataset --------------------------------------------------------
@@ -106,61 +112,131 @@ ie_meta <- tibble(
 )
 
 
-# --- XPT export --------------------------------------------------------------
+# --- XPT export with validation ----------------------------------------------
 
 ie_xpt <- ie %>%
   xportr_label(ie_meta, domain = "IE") %>%
   xportr_type(ie_meta, domain = "IE") %>%
   xportr_length(ie_meta, domain = "IE")
 
+# Define IE-specific validation checks
+ie_checks <- function(domain_df, dm_ref) {
+  checks <- list()
+
+  # IE1: 10 criteria per subject
+  criteria_count <- domain_df %>%
+    dplyr::group_by(USUBJID) %>%
+    dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
+    dplyr::filter(n != 10)
+
+  if (nrow(criteria_count) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "IE1",
+      description = "10 criteria per subject (5 inclusion + 5 exclusion)",
+      result = "FAIL",
+      detail = sprintf("%d subject(s) have != 10 criteria", nrow(criteria_count))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "IE1",
+      description = "10 criteria per subject (5 inclusion + 5 exclusion)",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # IE2: IECAT valid (INCLUSION or EXCLUSION)
+  invalid_iecat <- domain_df %>%
+    dplyr::filter(!IECAT %in% c("INCLUSION", "EXCLUSION"))
+
+  if (nrow(invalid_iecat) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "IE2",
+      description = "IECAT must be INCLUSION or EXCLUSION",
+      result = "FAIL",
+      detail = sprintf("%d row(s) have invalid IECAT", nrow(invalid_iecat))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "IE2",
+      description = "IECAT must be INCLUSION or EXCLUSION",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # IE3: IEORRES consistent with IECAT
+  ieorres_check <- domain_df %>%
+    dplyr::filter(
+      (IECAT == "INCLUSION" & IEORRES != "YES") |
+      (IECAT == "EXCLUSION" & IEORRES != "NO")
+    )
+
+  if (nrow(ieorres_check) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "IE3",
+      description = "IEORRES='YES' for inclusion, 'NO' for exclusion",
+      result = "FAIL",
+      detail = sprintf("%d row(s) have inconsistent IEORRES/IECAT", nrow(ieorres_check))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "IE3",
+      description = "IEORRES='YES' for inclusion, 'NO' for exclusion",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # IE4: No NA in IETESTCD
+  if (anyNA(domain_df$IETESTCD)) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "IE4",
+      description = "No NA in IETESTCD",
+      result = "FAIL",
+      detail = sprintf("%d NA value(s) in IETESTCD", sum(is.na(domain_df$IETESTCD)))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "IE4",
+      description = "No NA in IETESTCD",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  checks
+}
+
+# Run validation
+message("\n--- IE Validation ---")
+validation_result <- validate_sdtm_domain(
+  domain_df = ie_xpt,
+  domain_code = "IE",
+  dm_ref = dm,
+  expected_rows = c(400, 400),
+  ct_reference = list(IECAT = ct_reference$IECAT),
+  domain_checks = ie_checks
+)
+
+message(validation_result$summary)
+
+# Log validation result
+log_sdtm_result(
+  domain_code = "IE",
+  wave = WAVE,
+  row_count = nrow(ie_xpt),
+  col_count = ncol(ie_xpt),
+  validation_result = validation_result,
+  notes = c("10 criteria per subject: 5 inclusion + 5 exclusion",
+            "All subjects meet eligibility (enrolled population)")
+)
+
+# Write output files
 saveRDS(ie_xpt, file.path(OUTPUT_DIR, "ie.rds"))
 haven::write_xpt(ie_xpt, path = file.path(OUTPUT_DIR, "ie.xpt"))
 
-message("IE XPT written to: ", file.path(OUTPUT_DIR, "ie.xpt"))
-
-
-# --- Validation --------------------------------------------------------------
-
-message("\n--- IE Validation ---")
-
-# Check 1: Row count
-stopifnot("nrow must be 400" = nrow(ie) == 400)
-message("PASS nrow = ", nrow(ie))
-
-# Check 2: All USUBJID in DM
-orphan_subjects <- setdiff(unique(ie$USUBJID), dm$USUBJID)
-stopifnot("All USUBJID must be in DM" = length(orphan_subjects) == 0)
-message("PASS all USUBJID in DM (", dplyr::n_distinct(ie$USUBJID), " subjects)")
-
-# Check 3: IESEQ unique within USUBJID and ranges 1-10
-ieseq_check <- ie %>%
-  group_by(USUBJID) %>%
-  summarise(
-    n_seq      = dplyr::n(),
-    min_seq    = min(IESEQ),
-    max_seq    = max(IESEQ),
-    n_distinct = dplyr::n_distinct(IESEQ),
-    .groups = "drop"
-  )
-stopifnot(
-  "IESEQ must be unique within USUBJID" = all(ieseq_check$n_seq == ieseq_check$n_distinct),
-  "IESEQ min must be 1"                 = all(ieseq_check$min_seq == 1),
-  "IESEQ max must be 10"                = all(ieseq_check$max_seq == 10)
-)
-message("PASS IESEQ is unique within USUBJID and ranges 1-10")
-
-# Check 4: No NA in IETESTCD
-stopifnot("No NA in IETESTCD" = !anyNA(ie$IETESTCD))
-message("PASS no NA in IETESTCD")
-
-# Check 5: IEORRES values consistent with IECAT
-ieorres_check <- ie %>%
-  dplyr::filter(
-    (IECAT == "INCLUSION" & IEORRES != "YES") |
-    (IECAT == "EXCLUSION" & IEORRES != "NO")
-  )
-stopifnot("IEORRES must be YES for inclusion, NO for exclusion" = nrow(ieorres_check) == 0)
-message("PASS IEORRES consistent with IECAT")
-
-message("\nIE simulation complete: ", nrow(ie), " records, ",
-        dplyr::n_distinct(ie$USUBJID), " subjects.")
+message("\nIE XPT written to: ", file.path(OUTPUT_DIR, "ie.xpt"))
+message("IE RDS written to: ", file.path(OUTPUT_DIR, "ie.rds"))
+message("IE simulation complete: ", nrow(ie_xpt), " records, ",
+        dplyr::n_distinct(ie_xpt$USUBJID), " subjects.")

@@ -1,30 +1,50 @@
 # sim_bs.R
 # Simulate SDTM BS (Biospecimen) domain for NPM-008 / XB010-101
-# Domain order 8 — set.seed(50)
+# Wave 2, Domain order 8 — set.seed(50)
 #
 # Inputs:
-#   cohort/output-data/dm.rds  — DM spine with latent variables
-#   cohort/output-data/lb.rds  — LB data for genomic collection dates
+#   output-data/sdtm/dm.rds  — DM spine with latent variables
+#   output-data/sdtm/lb.rds  — LB data for genomic collection dates
+#   output-data/sdtm/ct_reference.rds — CT reference values
 #
 # Output:
-#   cohort/output-data/sdtm/bs.xpt
+#   output-data/sdtm/bs.xpt
+#   output-data/sdtm/bs.rds
 
-library(tidyverse)
-library(haven)
+# Load packages explicitly to avoid conflicts_prefer issue
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(stringr)
+  library(haven)
+})
+
+# Source validation functions
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
 
 set.seed(50)
 
 # --- Load inputs -------------------------------------------------------------
 
-dm <- readRDS("cohort/output-data/dm.rds")
-lb <- readRDS("cohort/output-data/lb.rds")
+dm <- readRDS("output-data/sdtm/dm.rds")
+lb <- readRDS("output-data/sdtm/lb.rds")
+ct_reference <- readRDS("output-data/sdtm/ct_reference.rds")
 
-# --- Derive genomic collection date per subject ------------------------------
-# Use the first LBDTC where LBCAT == "GENOMICS" per subject.
+# --- Derive biospecimen collection date per subject --------------------------
+# Use the first LB date from biomarker tests per subject (any biomarker test).
+# All biomarker tests come from the same biopsy, so they share the same date.
 # This date becomes BSDTC for all biospecimen records for that subject.
 
-genomic_dates <- lb %>%
-  dplyr::filter(LBCAT == "GENOMICS") %>%
+# Biomarker test codes from plan section 4.7
+biomarker_tests <- c("PDL1SUM", "PDL1SC", "PDL1TYPE", "EGFR", "ALK", "KRAS",
+                     "MET", "ROS1", "TP53", "NTRK1", "NTRK2", "NTRK3",
+                     "RB1", "RET", "ERBB2", "HER2IHC", "MSISTAT", "TMB",
+                     "LOHSUM", "LOHSC", "MMRMLH1", "MMRMSH2", "MMRMSH6",
+                     "MMRPMS2", "MMROVER", "CORES")
+
+biospecimen_dates <- lb %>%
+  dplyr::filter(LBTESTCD %in% biomarker_tests) %>%
   dplyr::arrange(USUBJID, LBDTC) %>%
   dplyr::group_by(USUBJID) %>%
   dplyr::slice(1) %>%
@@ -102,8 +122,8 @@ bs_raw <- dplyr::bind_rows(fixed_specs, he_specs) %>%
 # --- Assemble final BS dataset -----------------------------------------------
 
 bs <- bs_raw %>%
-  # Join genomic collection date
-  dplyr::left_join(genomic_dates, by = "USUBJID") %>%
+  # Join biospecimen collection date
+  dplyr::left_join(biospecimen_dates, by = "USUBJID") %>%
   dplyr::transmute(
     STUDYID  = "NPM008",
     DOMAIN   = "BS",
@@ -135,79 +155,178 @@ attr(bs[["BSMETHOD"]], "label") <- "Method of Test or Examination"
 attr(bs[["BSHIST"]],   "label") <- "Histology"
 attr(bs[["BSDTC"]],    "label") <- "Date/Time of Specimen Collection"
 
-# --- Validate ----------------------------------------------------------------
+# --- Domain-specific validation checks ---------------------------------------
 
-message("--- BS Validation ---")
+bs_domain_checks <- function(bs_df, dm_ref) {
+  checks <- list()
 
-# Row count within expected range
-nrow_bs <- nrow(bs)
-message("Row count: ", nrow_bs, " (expected 90-120)")
-if (nrow_bs < 90 || nrow_bs > 120) {
-  stop("BS row count out of expected range [90, 120]: ", nrow_bs, call. = FALSE)
+  # D1: BSTESTCD contains only permitted values
+  invalid_testcd <- setdiff(unique(bs_df$BSTESTCD), c("FFPEBL", "FFPESL", "HE"))
+  if (length(invalid_testcd) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "BS_D1",
+      description = "BSTESTCD contains only permitted values (FFPEBL, FFPESL, HE)",
+      result = "FAIL",
+      detail = sprintf("Invalid values: %s", paste(invalid_testcd, collapse = ", "))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "BS_D1",
+      description = "BSTESTCD contains only permitted values (FFPEBL, FFPESL, HE)",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # D2: All subjects have FFPEBL and FFPESL
+  ffpe_check <- bs_df %>%
+    dplyr::filter(BSTESTCD %in% c("FFPEBL", "FFPESL")) %>%
+    dplyr::group_by(USUBJID) %>%
+    dplyr::summarise(
+      has_bl = any(BSTESTCD == "FFPEBL"),
+      has_sl = any(BSTESTCD == "FFPESL"),
+      .groups = "drop"
+    ) %>%
+    dplyr::filter(!has_bl | !has_sl)
+
+  if (nrow(ffpe_check) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "BS_D2",
+      description = "All subjects have FFPEBL and FFPESL specimens",
+      result = "FAIL",
+      detail = sprintf("%d subject(s) missing required FFPE specimens", nrow(ffpe_check))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "BS_D2",
+      description = "All subjects have FFPEBL and FFPESL specimens",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # D3: BSDTC matches biomarker test collection date from LB
+  # Cross-check that all BS dates align with LB biomarker test dates
+  lb <- readRDS("output-data/sdtm/lb.rds")
+
+  # Biomarker test codes
+  biomarker_tests <- c("PDL1SUM", "PDL1SC", "PDL1TYPE", "EGFR", "ALK", "KRAS",
+                       "MET", "ROS1", "TP53", "NTRK1", "NTRK2", "NTRK3",
+                       "RB1", "RET", "ERBB2", "HER2IHC", "MSISTAT", "TMB",
+                       "LOHSUM", "LOHSC", "MMRMLH1", "MMRMSH2", "MMRMSH6",
+                       "MMRPMS2", "MMROVER", "CORES")
+
+  biomarker_lb_dates <- lb %>%
+    dplyr::filter(LBTESTCD %in% biomarker_tests) %>%
+    dplyr::group_by(USUBJID) %>%
+    dplyr::arrange(USUBJID, LBDTC) %>%
+    dplyr::slice(1) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(USUBJID, lb_date = LBDTC)
+
+  bs_dates <- bs_df %>%
+    dplyr::select(USUBJID, BSDTC) %>%
+    dplyr::distinct()
+
+  date_mismatch <- bs_dates %>%
+    dplyr::inner_join(biomarker_lb_dates, by = "USUBJID") %>%
+    dplyr::filter(BSDTC != lb_date)
+
+  if (nrow(date_mismatch) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "BS_D3",
+      description = "BSDTC matches first biomarker LB collection date per subject",
+      result = "FAIL",
+      detail = sprintf("%d subject(s) with date mismatch between BS and LB", nrow(date_mismatch))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "BS_D3",
+      description = "BSDTC matches first biomarker LB collection date per subject",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # D4: BSREFID format validation
+  invalid_bsrefid <- bs_df$BSREFID[!stringr::str_detect(bs_df$BSREFID, "^BS-\\d{2}-[A-Z]\\d{4}-\\d{2}$")]
+  if (length(invalid_bsrefid) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "BS_D4",
+      description = "BSREFID matches expected format BS-{SITE}-{SUBJ}-{SEQ}",
+      result = "FAIL",
+      detail = sprintf("%d invalid BSREFID(s): %s",
+                      length(invalid_bsrefid),
+                      paste(head(invalid_bsrefid, 3), collapse = ", "))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "BS_D4",
+      description = "BSREFID matches expected format BS-{SITE}-{SUBJ}-{SEQ}",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  checks
 }
 
-# All USUBJID present in DM
-dm_usubjids <- unique(dm$USUBJID)
-bs_usubjids <- unique(bs$USUBJID)
-missing_from_dm <- setdiff(bs_usubjids, dm_usubjids)
-if (length(missing_from_dm) > 0) {
-  stop(
-    length(missing_from_dm), " USUBJID(s) in BS not found in DM.",
-    call. = FALSE
+# --- Run validation ----------------------------------------------------------
+
+message("\n--- BS Validation ---\n")
+
+# Build CT reference for BS
+ct_bs <- list(
+  DOMAIN = "BS",
+  BSTESTCD = c("FFPEBL", "FFPESL", "HE"),
+  BSMETHOD = "FFPE"
+)
+
+validation_result <- validate_sdtm_domain(
+  domain_df = bs,
+  domain_code = "BS",
+  dm_ref = dm,
+  expected_rows = c(90, 120),
+  ct_reference = ct_bs,
+  domain_checks = bs_domain_checks
+)
+
+# Log result
+log_sdtm_result(
+  domain_code = "BS",
+  wave = 2,
+  row_count = nrow(bs),
+  col_count = ncol(bs),
+  validation_result = validation_result,
+  notes = c(
+    "Specimen collection dates match biomarker LB test dates",
+    "All subjects have FFPEBL and FFPESL; HE slides present for ~80%"
   )
-}
-message("All USUBJID present in DM: OK")
+)
 
-# BSSEQ unique within each USUBJID
-bsseq_dups <- bs %>%
-  dplyr::count(USUBJID, BSSEQ) %>%
-  dplyr::filter(n > 1)
-if (nrow(bsseq_dups) > 0) {
-  stop("BSSEQ is not unique within USUBJID for ", nrow(bsseq_dups), " group(s).",
-       call. = FALSE)
-}
-message("BSSEQ unique per USUBJID: OK")
+message(validation_result$summary)
 
-# BSTESTCD contains only permitted values
-invalid_testcd <- setdiff(unique(bs$BSTESTCD), c("FFPEBL", "FFPESL", "HE"))
-if (length(invalid_testcd) > 0) {
-  stop("Unexpected BSTESTCD value(s): ", paste(invalid_testcd, collapse = ", "),
-       call. = FALSE)
-}
-message("BSTESTCD values valid: OK")
+# --- Diagnostic summary ------------------------------------------------------
 
-# All subjects have FFPEBL and FFPESL
-ffpe_check <- bs %>%
-  dplyr::filter(BSTESTCD %in% c("FFPEBL", "FFPESL")) %>%
-  dplyr::group_by(USUBJID) %>%
-  dplyr::summarise(has_bl = any(BSTESTCD == "FFPEBL"),
-                   has_sl = any(BSTESTCD == "FFPESL"),
-                   .groups = "drop") %>%
-  dplyr::filter(!has_bl | !has_sl)
-if (nrow(ffpe_check) > 0) {
-  stop(nrow(ffpe_check), " subject(s) missing FFPEBL or FFPESL.", call. = FALSE)
-}
-message("All subjects have FFPEBL and FFPESL: OK")
+message("\n--- BS Diagnostic Summary ---")
+message("Total records: ", nrow(bs))
+message("Unique subjects: ", dplyr::n_distinct(bs$USUBJID))
+message("Records per subject: ", round(nrow(bs) / dplyr::n_distinct(bs$USUBJID), 1))
 
-# HE count approximate (expect ~32 subjects = 80% of 40)
-he_count <- sum(bs$BSTESTCD == "HE")
-message("HE record count: ", he_count, " (expected ~32, ±10)")
-
-# Summary table
-message("\n--- BSTESTCD frequency ---")
+message("\nBSTESTCD frequency:")
 print(dplyr::count(bs, BSTESTCD))
 
-message("\n--- BSSPEC frequency ---")
+message("\nBSSPEC frequency:")
 print(dplyr::count(bs, BSSPEC))
 
-message("\n--- BSANTREG frequency ---")
+message("\nBSANTREG frequency:")
 print(dplyr::count(bs, BSANTREG) %>% dplyr::arrange(BSANTREG))
 
 # --- Write XPT ---------------------------------------------------------------
 
-haven::write_xpt(bs, "cohort/output-data/sdtm/bs.xpt")
-message("\nWrote: cohort/output-data/sdtm/bs.xpt (", nrow_bs, " records)")
+haven::write_xpt(bs, "output-data/sdtm/bs.xpt")
+message("\nWrote: output-data/sdtm/bs.xpt (", nrow(bs), " records)")
 
 # Persist RDS for downstream domain use
-saveRDS(bs, "cohort/output-data/sdtm/bs.rds")
-message("Wrote: cohort/output-data/sdtm/bs.rds")
+saveRDS(bs, "output-data/sdtm/bs.rds")
+message("Wrote: output-data/sdtm/bs.rds")

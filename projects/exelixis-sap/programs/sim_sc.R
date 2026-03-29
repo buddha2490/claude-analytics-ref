@@ -13,14 +13,19 @@ library(tidyverse)
 library(haven)
 library(xportr)
 
+# --- Source validation functions ----------------------------------------------
+
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
+
 
 # --- Load DM spine ------------------------------------------------------------
 
-dm <- readRDS("cohort/output-data/dm.rds")
+dm <- readRDS("output-data/sdtm/dm.rds")
 
-# Retain only the identifiers needed for SC derivation
+# Retain identifiers and reference date for SC derivation
 dm_spine <- dm %>%
-  dplyr::select(USUBJID, RFICDTC)
+  dplyr::select(USUBJID, RFICDTC, RFSTDTC)
 
 
 # --- Constants ----------------------------------------------------------------
@@ -107,13 +112,148 @@ sc_long <- pmap_dfr(
   )
 
 
-# --- Validate structure -------------------------------------------------------
+# --- Domain-specific validation checks ----------------------------------------
 
-stopifnot(
-  "SC must have exactly 120 rows (40 subjects x 3 tests)"  = nrow(sc_long) == 120L,
-  "SC must have exactly 40 distinct USUBJID"               = dplyr::n_distinct(sc_long$USUBJID) == 40L,
-  "Each subject must have exactly 3 records"               = all(table(sc_long$USUBJID) == 3L)
+sc_domain_checks <- function(domain_df, dm_ref) {
+  checks <- list()
+
+  # SC1: Each subject has exactly 3 records (EDUC, MARISTAT, INCOME)
+  sc_per_subj <- domain_df %>%
+    dplyr::group_by(USUBJID) %>%
+    dplyr::summarize(n_records = dplyr::n(), .groups = "drop")
+
+  if (any(sc_per_subj$n_records != 3)) {
+    bad_subj <- sc_per_subj %>%
+      dplyr::filter(n_records != 3) %>%
+      dplyr::pull(USUBJID)
+    checks[[length(checks) + 1]] <- list(
+      check_id = "SC1",
+      description = "Each subject has exactly 3 records (EDUC, MARISTAT, INCOME)",
+      result = "FAIL",
+      detail = sprintf("%d subject(s) with != 3 records: %s",
+                      length(bad_subj),
+                      paste(head(bad_subj, 3), collapse = ", "))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "SC1",
+      description = "Each subject has exactly 3 records (EDUC, MARISTAT, INCOME)",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # SC2: SCDTC is consent date (RFICDTC) and before RFSTDTC
+  if ("SCDTC" %in% names(domain_df) && "USUBJID" %in% names(domain_df) &&
+      "RFICDTC" %in% names(dm_ref) && "RFSTDTC" %in% names(dm_ref)) {
+
+    dm_dates <- dm_ref %>%
+      dplyr::select(USUBJID, RFICDTC, RFSTDTC)
+
+    sc_dates <- domain_df %>%
+      dplyr::select(USUBJID, SCDTC) %>%
+      dplyr::distinct() %>%
+      dplyr::left_join(dm_dates, by = "USUBJID")
+
+    # Check SCDTC equals RFICDTC
+    scdtc_mismatch <- sc_dates %>%
+      dplyr::filter(SCDTC != RFICDTC)
+
+    # Check SCDTC before RFSTDTC
+    scdtc_after_rf <- sc_dates %>%
+      dplyr::filter(!is.na(SCDTC), !is.na(RFSTDTC), SCDTC >= RFSTDTC)
+
+    if (nrow(scdtc_mismatch) > 0) {
+      checks[[length(checks) + 1]] <- list(
+        check_id = "SC2",
+        description = "SCDTC equals RFICDTC (consent date) and is before RFSTDTC",
+        result = "FAIL",
+        detail = sprintf("%d subject(s) where SCDTC != RFICDTC",
+                        nrow(scdtc_mismatch))
+      )
+    } else if (nrow(scdtc_after_rf) > 0) {
+      checks[[length(checks) + 1]] <- list(
+        check_id = "SC2",
+        description = "SCDTC equals RFICDTC (consent date) and is before RFSTDTC",
+        result = "FAIL",
+        detail = sprintf("%d subject(s) where SCDTC >= RFSTDTC",
+                        nrow(scdtc_after_rf))
+      )
+    } else {
+      checks[[length(checks) + 1]] <- list(
+        check_id = "SC2",
+        description = "SCDTC equals RFICDTC (consent date) and is before RFSTDTC",
+        result = "PASS",
+        detail = ""
+      )
+    }
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "SC2",
+      description = "SCDTC equals RFICDTC (consent date) and is before RFSTDTC",
+      result = "FAIL",
+      detail = "Required date columns not found"
+    )
+  }
+
+  # SC3: All three required SCTESTCD values present for each subject
+  required_testcds <- c("EDUC", "MARISTAT", "INCOME")
+
+  testcd_check <- domain_df %>%
+    dplyr::group_by(USUBJID) %>%
+    dplyr::summarize(
+      testcds = list(sort(unique(SCTESTCD))),
+      .groups = "drop"
+    ) %>%
+    dplyr::mutate(
+      has_all = purrr::map_lgl(testcds, ~all(required_testcds %in% .x))
+    )
+
+  missing_testcd <- testcd_check %>%
+    dplyr::filter(!has_all)
+
+  if (nrow(missing_testcd) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "SC3",
+      description = "All subjects have EDUC, MARISTAT, and INCOME records",
+      result = "FAIL",
+      detail = sprintf("%d subject(s) missing one or more SCTESTCD values",
+                      nrow(missing_testcd))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "SC3",
+      description = "All subjects have EDUC, MARISTAT, and INCOME records",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  checks
+}
+
+
+# --- Validate SDTM domain -----------------------------------------------------
+
+# Load CT reference if available
+ct_ref_path <- "output-data/sdtm/ct_reference.rds"
+ct_reference <- if (file.exists(ct_ref_path)) {
+  readRDS(ct_ref_path)
+} else {
+  NULL
+}
+
+# Run validation
+validation_result <- validate_sdtm_domain(
+  domain_df = sc_long,
+  domain_code = "SC",
+  dm_ref = dm,
+  expected_rows = c(120, 120),  # Exact: 40 subjects × 3 records
+  ct_reference = ct_reference,
+  domain_checks = sc_domain_checks
 )
+
+message("\n", validation_result$summary)
 
 
 # --- XPT export ---------------------------------------------------------------
@@ -148,17 +288,32 @@ sc_xpt <- sc_long %>%
   xportr_length(sc_meta, domain = "SC")
 
 # Write XPT
-saveRDS(sc_xpt, "cohort/output-data/sdtm/sc.rds")
-haven::write_xpt(sc_xpt, path = "cohort/output-data/sdtm/sc.xpt")
+saveRDS(sc_xpt, "output-data/sdtm/sc.rds")
+haven::write_xpt(sc_xpt, path = "output-data/sdtm/sc.xpt")
+
+
+# --- Log validation result ----------------------------------------------------
+
+log_sdtm_result(
+  domain_code = "SC",
+  wave = 1,
+  row_count = nrow(sc_xpt),
+  col_count = ncol(sc_xpt),
+  validation_result = validation_result,
+  notes = c(
+    "3 records per subject: EDUC, MARISTAT, INCOME",
+    "SCDTC set to RFICDTC (consent date)"
+  )
+)
 
 
 # --- Summary ------------------------------------------------------------------
 
-message("SC simulation complete: ", nrow(sc_xpt), " records written to cohort/output-data/sdtm/sc.xpt")
+message("\nSC simulation complete: ", nrow(sc_xpt), " records written to output-data/sdtm/sc.xpt")
 message("Distinct USUBJID: ", dplyr::n_distinct(sc_xpt$USUBJID))
 message("\nEDUC distribution:")
-message(paste(capture.output(table(dplyr::filter(sc_xpt, SCTESTCD == "EDUC")$SCORRES)), collapse = "\n"))
+print(table(dplyr::filter(sc_xpt, SCTESTCD == "EDUC")$SCORRES))
 message("\nMARISTAT distribution:")
-message(paste(capture.output(table(dplyr::filter(sc_xpt, SCTESTCD == "MARISTAT")$SCORRES)), collapse = "\n"))
+print(table(dplyr::filter(sc_xpt, SCTESTCD == "MARISTAT")$SCORRES))
 message("\nINCOME distribution:")
-message(paste(capture.output(table(dplyr::filter(sc_xpt, SCTESTCD == "INCOME")$SCORRES)), collapse = "\n"))
+print(table(dplyr::filter(sc_xpt, SCTESTCD == "INCOME")$SCORRES))

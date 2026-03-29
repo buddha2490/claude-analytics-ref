@@ -1,23 +1,27 @@
 # =============================================================================
-# Program: cohort/adam_adae.R
+# Program: projects/exelixis-sap/programs/adam_adae.R
 # Study: NPM-008 / Exelixis XB010-100
 # Dataset: ADAE — Adverse Events Analysis Dataset
 # Author: r-clinical-programmer agent
-# Date: 2026-03-27
+# Date: 2026-03-29
 #
 # Source Domains:
-#   - AE: USUBJID, AETERM, AEDECOD, AESOC, AESTDTC, AEENDTC, AESER,
-#         AEREL, AESEV, AEACN, AESHOSP, AESEQ, AETOXGR
-#   - HO: USUBJID, HOTERM, HOSTDTC, HOENDTC, HOSEQ, HOHNKID
-#   - ADSL: USUBJID, TRTSDT, TRTEDT
+#   - AE: USUBJID, AESEQ, AETERM, AEDECOD, AESOC, AESTDTC, AEENDTC, AESER,
+#         AEREL, AESEV, AEACN
+#   - HO: USUBJID, HOHNKID, HOSTDTC, HOENDTC (hospitalization linked to AE)
+#   - ADSL: USUBJID, TRTSDT, TRTEDT (treatment dates for TRTEMFL)
 #
 # CDISC References:
-#   - ADaM-IG v1.3 (OCCDS structure for adverse events)
-#   - artifacts/NPM-008/Open-questions-cdisc.md R6 (AE-HO linkage)
-#   - artifacts/NPM-008/Open-questions-cdisc.md R7 (flag convention Y/blank)
+#   - ADaM-IG v1.3 Occurrence Data Structure
+#   - Treatment-emergent: AESTDT >= TRTSDT per plan Section 4.5
+#   - Flag convention: Y/blank per plan Section 5 Global Conventions (R7)
 #
 # Dependencies:
-#   - ADSL (cohort/output-data/adam/adsl.xpt) — required for TRTSDT, TRTEDT
+#   - ADSL (projects/exelixis-sap/output-data/adam/adsl.xpt) — required for TRTSDT
+#
+# Notes:
+#   - HO linkage via HOHNKID = as.character(AESEQ) per R6 decision
+#   - See projects/exelixis-sap/artifacts/Open-questions-cdisc.md
 # =============================================================================
 
 # --- Load packages -----------------------------------------------------------
@@ -29,10 +33,74 @@ library(lubridate)
 library(xportr)
 
 # --- Read source data --------------------------------------------------------
-ae <- haven::read_xpt("cohort/output-data/sdtm/ae.xpt")
-ho <- haven::read_xpt("cohort/output-data/sdtm/ho.xpt")
-adsl <- haven::read_xpt("cohort/output-data/adam/adsl.xpt")
-dm <- haven::read_xpt("cohort/output-data/sdtm/dm.xpt")
+ae <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/ae.xpt")
+ho <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/ho.xpt")
+adsl <- haven::read_xpt("projects/exelixis-sap/output-data/adam/adsl.xpt")
+dm <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/dm.xpt")
+
+# --- Data Contract Validation (Step 4 Checkpoint) ----------------------------
+message("\n=== Data Contract Validation ===")
+
+# List all columns in source domains
+message("AE columns: ", paste(names(ae), collapse = ", "))
+message("HO columns: ", paste(names(ho), collapse = ", "))
+message("ADSL columns: ", paste(names(adsl), collapse = ", "))
+
+# Expected variables from plan Section 4.5
+# NOTE: Plan lists AEBODSYS and AEOUT, but actual data has AESOC (System Organ Class)
+#       and no AEOUT variable. Using AESOC as the body system variable.
+plan_vars_ae <- c("USUBJID", "AETERM", "AEDECOD", "AESOC", "AESTDTC", "AEENDTC",
+                  "AESER", "AEREL", "AESEV", "AEACN", "AESEQ")
+actual_vars_ae <- names(ae)
+
+missing_vars_ae <- setdiff(plan_vars_ae, actual_vars_ae)
+extra_vars_ae <- setdiff(actual_vars_ae, plan_vars_ae)
+
+if (length(missing_vars_ae) > 0) {
+  stop(
+    "Plan lists AE variables not found in data: ", paste(missing_vars_ae, collapse = ", "),
+    "\nActual AE variables: ", paste(actual_vars_ae, collapse = ", "),
+    "\nREVISIT: Update plan or identify alternative variables",
+    call. = FALSE
+  )
+}
+
+message("✓ Data contract OK (AE): All ", length(plan_vars_ae), " expected variables found")
+
+# Validate HO
+plan_vars_ho <- c("USUBJID", "HOTERM", "HOSTDTC", "HOENDTC", "HOSEQ", "HOHNKID")
+actual_vars_ho <- names(ho)
+
+missing_vars_ho <- setdiff(plan_vars_ho, actual_vars_ho)
+
+if (length(missing_vars_ho) > 0) {
+  stop(
+    "Plan lists HO variables not found in data: ", paste(missing_vars_ho, collapse = ", "),
+    "\nActual HO variables: ", paste(actual_vars_ho, collapse = ", "),
+    "\nREVISIT: Update plan or identify alternative variables",
+    call. = FALSE
+  )
+}
+
+message("✓ Data contract OK (HO): All ", length(plan_vars_ho), " expected variables found")
+
+# Validate ADSL
+plan_vars_adsl <- c("USUBJID", "TRTSDT", "TRTEDT", "STUDYID")
+actual_vars_adsl <- names(adsl)
+
+missing_vars_adsl <- setdiff(plan_vars_adsl, actual_vars_adsl)
+
+if (length(missing_vars_adsl) > 0) {
+  stop(
+    "Plan lists ADSL variables not found in data: ", paste(missing_vars_adsl, collapse = ", "),
+    "\nActual ADSL variables: ", paste(actual_vars_adsl, collapse = ", "),
+    "\nREVISIT: Update plan or check ADSL derivation",
+    call. = FALSE
+  )
+}
+
+message("✓ Data contract OK (ADSL): All ", length(plan_vars_adsl), " expected variables found")
+message("Data contract validation complete.\n")
 
 # --- Derive base variables from AE -------------------------------------------
 # Start with AE domain, add numeric dates and study days
@@ -47,7 +115,7 @@ adae <- ae %>%
   ) %>%
   # Merge ADSL treatment dates
   left_join(
-    adsl %>% select(USUBJID, TRTSDT, TRTEDT),
+    adsl %>% dplyr::select(USUBJID, TRTSDT, TRTEDT),
     by = "USUBJID"
   ) %>%
   # Derive study days relative to treatment start
@@ -72,14 +140,17 @@ adae <- ae %>%
   )
 
 # --- Derive treatment-emergent flag ------------------------------------------
-# TRTEMFL = 'Y' if AESTDT >= ADSL.TRTSDT
-# REVISIT: Flag convention Y/blank per artifacts/NPM-008/Open-questions-cdisc.md R7
+# TRTEMFL = 'Y' if AESTDT >= TRTSDT
+# Per plan Section 4.5, line 351: treatment-emergent defined as on or after treatment start
+# Flag convention: Y/blank (not Y/N) per plan Section 5 Global Conventions
 
 adae <- adae %>%
   mutate(
-    TRTEMFL = if_else(!is.na(AESTDT) & !is.na(TRTSDT) & AESTDT >= TRTSDT,
-                      "Y",
-                      NA_character_)
+    TRTEMFL = if_else(
+      !is.na(AESTDT) & !is.na(TRTSDT) & AESTDT >= TRTSDT,
+      "Y",
+      NA_character_
+    )
   )
 
 # --- Derive severity numeric coding -------------------------------------------
@@ -98,13 +169,14 @@ adae <- adae %>%
   )
 
 # --- Merge hospitalization data -----------------------------------------------
-# REVISIT: AE-HO linkage per artifacts/NPM-008/Open-questions-cdisc.md R6
+# REVISIT: AE-HO linkage via HOHNKID = AESEQ per R6 decision
+# See projects/exelixis-sap/artifacts/Open-questions-cdisc.md R6
 # Join on USUBJID + HO.HOHNKID == as.character(AE.AESEQ)
 
 adae <- adae %>%
   mutate(AESEQ_C = as.character(AESEQ)) %>%
   left_join(
-    ho %>% select(USUBJID, HOHNKID, HOSTDTC, HOENDTC),
+    ho %>% dplyr::select(USUBJID, HOHNKID, HOSTDTC, HOENDTC),
     by = c("USUBJID", "AESEQ_C" = "HOHNKID")
   ) %>%
   # Derive hospitalization duration
@@ -115,17 +187,18 @@ adae <- adae %>%
       NA_real_
     )
   ) %>%
-  select(-AESEQ_C)  # Remove temporary join key
+  dplyr::select(-AESEQ_C)  # Remove temporary join key
 
 # --- Finalize variable selection and ordering ---------------------------------
+# Per plan Section 4.5: 20 variables expected in ADAE
 adae <- adae %>%
-  select(
+  dplyr::select(
     STUDYID, USUBJID, AESEQ,
     AETERM, AEDECOD, AESOC,
     AESTDTC, AEENDTC, AESTDT, AEENDT,
     ASTDY, AENDY, AEDUR,
     AESER, AEREL, AESEV, AESEVN,
-    AEACN, AESHOSP,
+    AEACN,
     TRTEMFL, HOSPDUR
   )
 
@@ -137,7 +210,7 @@ adae_meta <- tibble::tibble(
     "AESTDTC", "AEENDTC", "AESTDT", "AEENDT",
     "ASTDY", "AENDY", "AEDUR",
     "AESER", "AEREL", "AESEV", "AESEVN",
-    "AEACN", "AESHOSP",
+    "AEACN",
     "TRTEMFL", "HOSPDUR"
   ),
   label = c(
@@ -159,7 +232,6 @@ adae_meta <- tibble::tibble(
     "Severity/Intensity",
     "Severity/Intensity Numeric",
     "Action Taken with Study Treatment",
-    "Hospitalization for Adverse Event",
     "Treatment Emergent Flag",
     "Hospitalization Duration (Days)"
   ),
@@ -169,7 +241,7 @@ adae_meta <- tibble::tibble(
     "character", "character", "numeric", "numeric",
     "numeric", "numeric", "numeric",
     "character", "character", "character", "integer",
-    "character", "character",
+    "character",
     "character", "numeric"
   )
 )
@@ -214,6 +286,10 @@ if (!all(adae$USUBJID %in% dm$USUBJID)) {
 message("\nValidation checks passed.")
 
 # --- Save dataset -------------------------------------------------------------
-saveRDS(adae, "cohort/output-data/adam/adae.rds")
-haven::write_xpt(adae, "cohort/output-data/adam/adae.xpt")
-message("\nADAE saved to: cohort/output-data/adam/adae.xpt")
+output_dir <- "projects/exelixis-sap/output-data/adam"
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE)
+}
+
+haven::write_xpt(adae, file.path(output_dir, "adae.xpt"))
+message("\nADAE saved to: ", file.path(output_dir, "adae.xpt"))

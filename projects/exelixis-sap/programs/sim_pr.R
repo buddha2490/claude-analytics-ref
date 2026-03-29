@@ -18,7 +18,7 @@ library(haven)
 set.seed(54)  # PR is domain order 12; seed = 42 + 12
 
 # --- Load DM spine ------------------------------------------------------------
-dm <- readRDS("cohort/output-data/dm.rds")
+dm <- readRDS("output-data/sdtm/dm.rds")
 
 spine <- dm %>%
   dplyr::select(USUBJID, RFSTDTC)
@@ -190,9 +190,9 @@ message(sprintf("Total PR records: %d", nrow(pr)))
 message(sprintf("Subjects with >=1 PR record: %d / %d", dplyr::n_distinct(pr$USUBJID), n_total))
 
 # --- Write XPT ----------------------------------------------------------------
-saveRDS(pr, "cohort/output-data/sdtm/pr.rds")
-haven::write_xpt(pr, "cohort/output-data/sdtm/pr.xpt")
-message("Written: cohort/output-data/sdtm/pr.xpt")
+saveRDS(pr, "output-data/sdtm/pr.rds")
+haven::write_xpt(pr, "output-data/sdtm/pr.xpt")
+message("Written: output-data/sdtm/pr.xpt")
 
 # --- Preview ------------------------------------------------------------------
 print(head(pr, 10))

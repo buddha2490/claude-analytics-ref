@@ -2,27 +2,33 @@
 # sim_ae.R
 # NPM-008 / XB010-101 — SDTM AE Domain Simulation
 #
-# Inputs:  cohort/output-data/dm.rds   (DM spine with latent variables)
-#          cohort/output-data/ex.rds   (EX data: EXSTDTC, EXENDTC, EXTRT)
-# Outputs: cohort/output-data/sdtm/ae.xpt
-#          cohort/output-data/sdtm/ae.rds
+# Inputs:  output-data/sdtm/dm.rds   (DM spine with latent variables)
+#          output-data/sdtm/ex.rds   (EX data: EXSTDTC, EXENDTC, EXTRT)
+#          output-data/sdtm/ct_reference.rds (CT reference values)
+# Outputs: output-data/sdtm/ae.xpt
+#          output-data/sdtm/ae.rds
 #
-# Domain order: 17  →  set.seed(42 + 17) = set.seed(59)
-# Avg AEs per subject: 2–4 (minimum 1 per subject enforced)
+# Wave: 2, Domain order: 17  →  set.seed(42 + 17) = set.seed(59)
+# Expected rows: 200-800 (avg 5-20 AEs per subject, min 1 per subject)
 # =============================================================================
 
 library(tidyverse)
 library(haven)
 library(lubridate)
 
+# Source validation and logging functions
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
+
 set.seed(59)
 
 # --- Paths -------------------------------------------------------------------
-data_dir <- "/Users/briancarter/Rdata/claude-analytics-ref/cohort/output-data"
+data_dir <- "output-data/sdtm"
 
 # --- Read inputs -------------------------------------------------------------
 dm <- readRDS(file.path(data_dir, "dm.rds"))
 ex <- readRDS(file.path(data_dir, "ex.rds"))
+ct_ref <- readRDS(file.path(data_dir, "ct_reference.rds"))
 
 # Retain only columns needed from EX
 ex_slim <- ex %>%
@@ -287,94 +293,157 @@ attr(ae$AEENDTC, "label") <- "End Date/Time of Adverse Event"
 saveRDS(ae, file.path(data_dir, "ae.rds"))
 message("Saved: ", file.path(data_dir, "ae.rds"))
 
+# --- Define AE-specific validation checks -----------------------------------
+ae_domain_checks <- function(ae_df, dm_ref) {
+  checks <- list()
+
+  # AE1: AESTDTC within treatment window (EXSTDTC, EXENDTC)
+  ex_ref <- readRDS("output-data/sdtm/ex.rds") %>%
+    dplyr::select(USUBJID, EXSTDTC, EXENDTC)
+
+  date_check <- ae_df %>%
+    left_join(ex_ref, by = "USUBJID") %>%
+    mutate(
+      ae_start_dt = as.Date(AESTDTC),
+      ex_start_dt = as.Date(EXSTDTC),
+      ex_end_dt   = as.Date(EXENDTC),
+      before_ex   = ae_start_dt < ex_start_dt,
+      after_ex    = ae_start_dt > ex_end_dt
+    )
+
+  n_before <- sum(date_check$before_ex, na.rm = TRUE)
+  n_after  <- sum(date_check$after_ex, na.rm = TRUE)
+
+  if (n_before > 0 || n_after > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "AE1",
+      description = "AESTDTC within treatment window (EXSTDTC to EXENDTC)",
+      result = "FAIL",
+      detail = sprintf("%d before EXSTDTC, %d after EXENDTC", n_before, n_after)
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "AE1",
+      description = "AESTDTC within treatment window (EXSTDTC to EXENDTC)",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # AE2: AESEV consistent with AETOXGR mapping
+  sev_check <- ae_df %>%
+    mutate(
+      expected_sev = case_when(
+        AETOXGR == "1" ~ "MILD",
+        AETOXGR == "2" ~ "MODERATE",
+        AETOXGR == "3" ~ "SEVERE",
+        AETOXGR == "4" ~ "LIFE THREATENING",
+        TRUE ~ NA_character_
+      ),
+      sev_match = AESEV == expected_sev
+    )
+  n_sev_mismatch <- sum(!sev_check$sev_match, na.rm = TRUE)
+
+  if (n_sev_mismatch > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "AE2",
+      description = "AESEV consistent with AETOXGR mapping",
+      result = "FAIL",
+      detail = sprintf("%d records with AESEV/AETOXGR mismatch", n_sev_mismatch)
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "AE2",
+      description = "AESEV consistent with AETOXGR mapping",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # AE3: Every subject in DM has at least one AE
+  subjects_with_ae <- n_distinct(ae_df$USUBJID)
+  subjects_in_dm   <- n_distinct(dm_ref$USUBJID)
+
+  if (subjects_with_ae < subjects_in_dm) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "AE3",
+      description = "Every subject in DM has at least one AE",
+      result = "FAIL",
+      detail = sprintf("Only %d of %d subjects have AEs", subjects_with_ae, subjects_in_dm)
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "AE3",
+      description = "Every subject in DM has at least one AE",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # AE4: AEOUT values from CT reference (if present)
+  if ("AEOUT" %in% names(ae_df)) {
+    valid_aeout <- ct_ref[["AEOUT"]]
+    if (!is.null(valid_aeout)) {
+      invalid_aeout <- ae_df$AEOUT[!is.na(ae_df$AEOUT) & !ae_df$AEOUT %in% valid_aeout]
+      if (length(invalid_aeout) > 0) {
+        checks[[length(checks) + 1]] <- list(
+          check_id = "AE4",
+          description = "AEOUT values from CT reference",
+          result = "FAIL",
+          detail = sprintf("%d invalid AEOUT values: %s",
+                         length(invalid_aeout),
+                         paste(head(unique(invalid_aeout), 3), collapse = ", "))
+        )
+      } else {
+        checks[[length(checks) + 1]] <- list(
+          check_id = "AE4",
+          description = "AEOUT values from CT reference",
+          result = "PASS",
+          detail = ""
+        )
+      }
+    }
+  }
+
+  checks
+}
+
+# --- Prepare CT reference for validation -------------------------------------
+ct_reference_ae <- list(
+  AESEV = c("MILD", "MODERATE", "SEVERE", "LIFE THREATENING"),
+  AEREL = c("IO SACT", "non-IO SACT"),
+  AESHOSP = c("Y", "N"),
+  AESER = c("Y", "N")
+)
+
+# --- Validate domain ---------------------------------------------------------
+message("\n--- Validating AE domain ---")
+validation_result <- validate_sdtm_domain(
+  domain_df = ae,
+  domain_code = "AE",
+  dm_ref = dm,
+  expected_rows = c(200, 800),
+  ct_reference = ct_reference_ae,
+  domain_checks = ae_domain_checks
+)
+
+message(validation_result$summary)
+
+# --- Log result --------------------------------------------------------------
+log_sdtm_result(
+  domain_code = "AE",
+  wave = 2,
+  row_count = nrow(ae),
+  col_count = ncol(ae),
+  validation_result = validation_result,
+  notes = c(
+    sprintf("Avg AEs per subject: %.2f", nrow(ae) / n_distinct(ae$USUBJID)),
+    sprintf("Subjects with AEs: %d / %d", n_distinct(ae$USUBJID), n_distinct(dm$USUBJID))
+  )
+)
+
+# --- Write XPT after successful validation -----------------------------------
 haven::write_xpt(ae, path = file.path(data_dir, "ae.xpt"))
 message("Saved: ", file.path(data_dir, "ae.xpt"))
-
-# --- Validation --------------------------------------------------------------
-message("\n--- Validation ---")
-
-# 1. All USUBJIDs present in DM
-orphan_subjids <- setdiff(unique(ae$USUBJID), unique(dm$USUBJID))
-if (length(orphan_subjids) == 0) {
-  message("PASS: All AE USUBJIDs exist in DM")
-} else {
-  warning("FAIL: ", length(orphan_subjids), " AE USUBJIDs not in DM: ",
-          paste(orphan_subjids, collapse = ", "), call. = FALSE)
-}
-
-# 2. AESEQ unique per USUBJID
-aeseq_dups <- ae %>%
-  group_by(USUBJID, AESEQ) %>%
-  dplyr::filter(n() > 1) %>%
-  nrow()
-if (aeseq_dups == 0) {
-  message("PASS: AESEQ is unique per USUBJID")
-} else {
-  warning("FAIL: ", aeseq_dups, " duplicate AESEQ values found", call. = FALSE)
-}
-
-# 3. AESTDTC >= EXSTDTC (treatment start)
-date_check <- ae %>%
-  left_join(ex_slim %>% dplyr::select(USUBJID, EXSTDTC, EXENDTC),
-            by = "USUBJID") %>%
-  mutate(
-    ae_start_dt = as.Date(AESTDTC),
-    ex_start_dt = as.Date(EXSTDTC),
-    ex_end_dt   = as.Date(EXENDTC),
-    before_ex   = ae_start_dt < ex_start_dt,
-    after_ex    = ae_start_dt > ex_end_dt
-  )
-
-n_before <- sum(date_check$before_ex, na.rm = TRUE)
-n_after  <- sum(date_check$after_ex,  na.rm = TRUE)
-
-if (n_before == 0) {
-  message("PASS: No AE starts before EXSTDTC")
-} else {
-  warning("FAIL: ", n_before, " AEs start before EXSTDTC", call. = FALSE)
-}
-
-if (n_after == 0) {
-  message("PASS: No AE starts after EXENDTC")
-} else {
-  warning("FAIL: ", n_after, " AEs start after EXENDTC", call. = FALSE)
-}
-
-# 4. Average AEs per subject in 2–4 range
-avg_aes <- nrow(ae) / n_distinct(ae$USUBJID)
-if (avg_aes >= 2 && avg_aes <= 4) {
-  message("PASS: Avg AEs per subject = ", round(avg_aes, 2), " (target 2–4)")
-} else {
-  message("INFO: Avg AEs per subject = ", round(avg_aes, 2),
-          " (target 2–4; note: random variation expected)")
-}
-
-# 5. AESEV consistent with AETOXGR
-sev_check <- ae %>%
-  mutate(
-    expected_sev = case_when(
-      AETOXGR == "1" ~ "MILD",
-      AETOXGR == "2" ~ "MODERATE",
-      AETOXGR == "3" ~ "SEVERE",
-      AETOXGR == "4" ~ "LIFE THREATENING"
-    ),
-    sev_match = AESEV == expected_sev
-  )
-n_sev_mismatch <- sum(!sev_check$sev_match, na.rm = TRUE)
-if (n_sev_mismatch == 0) {
-  message("PASS: AESEV consistent with AETOXGR for all records")
-} else {
-  warning("FAIL: ", n_sev_mismatch, " records have AESEV/AETOXGR mismatch", call. = FALSE)
-}
-
-# 6. Coverage: every subject in DM has at least one AE
-subjects_with_ae <- n_distinct(ae$USUBJID)
-subjects_in_dm   <- n_distinct(dm$USUBJID)
-if (subjects_with_ae == subjects_in_dm) {
-  message("PASS: All ", subjects_in_dm, " DM subjects have at least one AE")
-} else {
-  warning("FAIL: Only ", subjects_with_ae, " of ", subjects_in_dm,
-          " subjects have AEs", call. = FALSE)
-}
 
 message("\n--- AE domain simulation complete ---")

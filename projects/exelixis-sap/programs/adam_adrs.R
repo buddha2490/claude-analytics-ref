@@ -1,38 +1,27 @@
 # =============================================================================
-# Program: cohort/adam_adrs.R
+# Program: projects/exelixis-sap/programs/adam_adrs.R
 # Study: NPM-008 / Exelixis XB010-100
-# Dataset: ADRS — Response (Tumor Response Assessment per RECIST 1.1)
+# Dataset: ADRS — Response (Tumor Response per RECIST 1.1)
 # Author: r-clinical-programmer agent
-# Date: 2026-03-27
+# Date: 2026-03-29
 #
 # Source Domains:
 #   - RS: USUBJID, RSTESTCD, RSSTRESC, RSSTRESN, RSDTC, VISIT, VISITNUM, RSEVAL
 #   - DM: USUBJID, STUDYID
-#   - ADSL: USUBJID, TRTSDT (from cohort/output-data/adam/adsl.xpt)
+#   - ADSL: USUBJID, TRTSDT
 #
 # CDISC References:
-#   - ADaM-IG v1.3 BDS structure for oncology endpoints
-#   - RECIST 1.1 confirmation criteria (SAP Section)
+#   - ADaM-IG v1.3 (BDS structure)
+#   - RECIST 1.1 response criteria with confirmation requirement
+#   - Open-questions-cdisc.md R3: BOR requires confirmed response (≥28 days)
+#   - Open-questions-cdisc.md R8: AVAL coding 1=CR, 2=PR, 3=SD, 4=PD, 5=NE
 #
 # Dependencies:
-#   - ADSL (cohort/output-data/adam/adsl.xpt) — required for TRTSDT
-#
-# Key Logic:
-#   - Filter RS to RSTESTCD = 'RECIST' for visit-level per-assessment records
-#   - RSTESTCD = 'CLINRES' records are NOT used (clinician-stated BOR)
-#   - BOR derivation requires CONFIRMED response: two consecutive CR or PR
-#     assessments with >=28 day interval per SAP
-#   - AVAL numeric coding (study-specific): 1=CR, 2=PR, 3=SD, 4=PD, 5=NE
-#   - ADY = ADT - TRTSDT + 1 (if on/after TRTSDT), else ADT - TRTSDT
-#
-# REVISIT:
-#   - Confirmed response per SAP (≥28-day interval).
-#     See artifacts/NPM-008/Open-questions-cdisc.md R3
-#   - AVAL numeric coding is study-specific (not CDISC standard).
-#     See artifacts/NPM-008/Open-questions-cdisc.md R8
+#   - ADSL (projects/exelixis-sap/output-data/adam/adsl.xpt) — required for TRTSDT
+#   - RS (projects/exelixis-sap/output-data/sdtm/rs.xpt) — source of response assessments
+#   - DM (projects/exelixis-sap/output-data/sdtm/dm.xpt) — subject identifiers
 # =============================================================================
 
-# --- Load packages -----------------------------------------------------------
 library(haven)
 library(dplyr)
 library(tidyr)
@@ -41,250 +30,311 @@ library(lubridate)
 library(xportr)
 
 # --- Read source data --------------------------------------------------------
-message("Reading source data...")
-dm <- haven::read_xpt("cohort/output-data/sdtm/dm.xpt")
-rs <- haven::read_xpt("cohort/output-data/sdtm/rs.xpt")
-adsl <- haven::read_xpt("cohort/output-data/adam/adsl.xpt")
 
-message("  DM rows: ", nrow(dm))
-message("  RS rows: ", nrow(rs))
-message("  ADSL rows: ", nrow(adsl))
+dm <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/dm.xpt")
+rs <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/rs.xpt")
+adsl <- haven::read_xpt("projects/exelixis-sap/output-data/adam/adsl.xpt")
 
-# --- Filter RS to RECIST assessments -----------------------------------------
-# NOTE: RSTESTCD = 'RECIST' contains visit-level per-assessment records
-# NOTE: RSTESTCD = 'CLINRES' are clinician-stated BOR and are NOT used
-message("Filtering RS to RSTESTCD = 'RECIST'...")
+# --- Data contract validation ------------------------------------------------
+
+message("=== Step 4: Data Contract Validation ===")
+
+# Expected variables from plan Section 4.4
+plan_vars_dm <- c("USUBJID", "STUDYID")
+plan_vars_rs <- c("USUBJID", "RSTESTCD", "RSSTRESC", "RSDTC",
+                  "VISIT", "VISITNUM", "RSEVAL")
+plan_vars_adsl <- c("USUBJID", "TRTSDT")
+
+actual_vars_dm <- names(dm)
+actual_vars_rs <- names(rs)
+actual_vars_adsl <- names(adsl)
+
+# Validate DM
+missing_vars_dm <- setdiff(plan_vars_dm, actual_vars_dm)
+if (length(missing_vars_dm) > 0) {
+  stop(
+    "Plan lists variables not found in DM: ", paste(missing_vars_dm, collapse=", "),
+    "\nActual DM variables: ", paste(actual_vars_dm, collapse=", "),
+    call. = FALSE
+  )
+}
+message("✓ Data contract OK (DM): All ", length(plan_vars_dm), " expected variables found")
+
+# Validate RS
+missing_vars_rs <- setdiff(plan_vars_rs, actual_vars_rs)
+if (length(missing_vars_rs) > 0) {
+  stop(
+    "Plan lists variables not found in RS: ", paste(missing_vars_rs, collapse=", "),
+    "\nActual RS variables: ", paste(actual_vars_rs, collapse=", "),
+    call. = FALSE
+  )
+}
+message("✓ Data contract OK (RS): All ", length(plan_vars_rs), " expected variables found")
+
+# Validate ADSL
+missing_vars_adsl <- setdiff(plan_vars_adsl, actual_vars_adsl)
+if (length(missing_vars_adsl) > 0) {
+  stop(
+    "Plan lists variables not found in ADSL: ", paste(missing_vars_adsl, collapse=", "),
+    "\nActual ADSL variables: ", paste(actual_vars_adsl, collapse=", "),
+    call. = FALSE
+  )
+}
+message("✓ Data contract OK (ADSL): All ", length(plan_vars_adsl), " expected variables found")
+
+# --- Exploration (for dev log only) ------------------------------------------
+
+message("\n=== RS Domain Exploration ===")
+message("Total RS records: ", nrow(rs))
+message("Subjects with RS data: ", dplyr::n_distinct(rs$USUBJID))
+message("\nRSTESTCD frequencies:")
+print(table(rs$RSTESTCD, useNA = "ifany"))
+message("\nRSSTRESC frequencies (RSTESTCD=RECIST):")
+print(table(rs$RSSTRESC[rs$RSTESTCD == "RECIST"], useNA = "ifany"))
+
+# --- Filter to RECIST assessments --------------------------------------------
+
+# Per plan: Use RSTESTCD = 'RECIST' for visit-level assessments
+# RSTESTCD = 'CLINRES' (clinician-stated BOR) is excluded per plan guidance
 rs_recist <- rs %>%
-  filter(RSTESTCD == "RECIST")
+  dplyr::filter(RSTESTCD == "RECIST")
 
-message("  RS RECIST rows: ", nrow(rs_recist))
+message("\nFiltered to RSTESTCD=RECIST: ", nrow(rs_recist), " records")
 
-# --- Create OVRLRESP (per-visit response) records ----------------------------
-message("Creating OVRLRESP records...")
+# --- Create OVRLRESP (per-visit overall response) records -------------------
 
-# Merge with ADSL to get TRTSDT
-# Note: STUDYID already in RS domain
-adrs_ovrl <- rs_recist %>%
-  left_join(adsl %>% select(USUBJID, TRTSDT), by = "USUBJID") %>%
-  mutate(
+ovrlresp <- rs_recist %>%
+  dplyr::left_join(
+    adsl %>% dplyr::select(USUBJID, TRTSDT),
+    by = "USUBJID"
+  ) %>%
+  dplyr::mutate(
     PARAMCD = "OVRLRESP",
     PARAM = "Overall Response by Investigator",
     AVALC = RSSTRESC,
     # NOTE: Study-specific AVAL coding — not CDISC standard
-    # Lower number = better response
-    AVAL = case_when(
-      RSSTRESC == "CR" ~ 1,
-      RSSTRESC == "PR" ~ 2,
-      RSSTRESC == "SD" ~ 3,
-      RSSTRESC == "PD" ~ 4,
-      RSSTRESC == "NE" ~ 5,
+    # Per Open-questions-cdisc.md R8: 1=CR, 2=PR, 3=SD, 4=PD, 5=NE
+    AVAL = dplyr::case_when(
+      AVALC == "CR" ~ 1,
+      AVALC == "PR" ~ 2,
+      AVALC == "SD" ~ 3,
+      AVALC == "PD" ~ 4,
+      AVALC == "NE" ~ 5,
       TRUE ~ NA_real_
     ),
-    ADT = as.numeric(as.Date(RSDTC)),
-    # ADY calculation per CDISC: no day zero
-    ADY = if_else(as.Date(RSDTC) >= as.Date(TRTSDT, origin = "1970-01-01"),
-                  as.numeric(as.Date(RSDTC) - as.Date(TRTSDT, origin = "1970-01-01")) + 1,
-                  as.numeric(as.Date(RSDTC) - as.Date(TRTSDT, origin = "1970-01-01"))),
-    AVISIT = VISIT,
-    AVISITN = VISITNUM,
-    ANL01FL = "Y"  # All RECIST assessments included in primary analysis
-  )
-
-# --- Derive baseline flag (ABLFL) --------------------------------------------
-message("Deriving baseline flag (ABLFL)...")
-
-# Baseline = last assessment before or on TRTSDT
-adrs_ovrl <- adrs_ovrl %>%
-  group_by(USUBJID) %>%
-  mutate(
-    # Find max baseline date (assessments <= TRTSDT)
-    max_bl_dt = max(ADT[ADT <= TRTSDT], na.rm = TRUE),
-    # Flag baseline record (handle case where no baseline exists)
-    ABLFL = if_else(
-      !is.infinite(max_bl_dt) & ADT == max_bl_dt,
+    # Convert RSDTC to numeric date
+    ADT = as.numeric(lubridate::ymd(RSDTC)),
+    # Study day calculation (no day zero per CDISC)
+    ADY = dplyr::if_else(
+      !is.na(ADT) & !is.na(TRTSDT) & ADT >= TRTSDT,
+      as.integer(ADT - TRTSDT + 1),
+      dplyr::if_else(
+        !is.na(ADT) & !is.na(TRTSDT) & ADT < TRTSDT,
+        as.integer(ADT - TRTSDT),
+        NA_integer_
+      )
+    )
+  ) %>%
+  dplyr::group_by(USUBJID) %>%
+  dplyr::mutate(
+    # Baseline flag: last assessment before or on TRTSDT
+    max_prebaseline = max(ADT[!is.na(ADT) & !is.na(TRTSDT) & ADT <= TRTSDT], na.rm = TRUE),
+    ABLFL = dplyr::if_else(
+      !is.na(ADT) & !is.na(max_prebaseline) & is.finite(max_prebaseline) & ADT == max_prebaseline,
       "Y",
       NA_character_
     )
   ) %>%
-  ungroup() %>%
-  select(-max_bl_dt)
+  dplyr::ungroup() %>%
+  dplyr::mutate(
+    # ANL01FL: primary analysis flag (all post-baseline RECIST assessments)
+    ANL01FL = dplyr::if_else(
+      !is.na(ADT) & !is.na(TRTSDT) & ADT > TRTSDT,
+      "Y",
+      NA_character_
+    )
+  ) %>%
+  dplyr::select(
+    STUDYID, USUBJID, PARAMCD, PARAM, AVALC, AVAL, ADT, ADY, VISIT, VISITNUM,
+    ABLFL, ANL01FL, TRTSDT
+  )
 
-# --- Derive BOR (Best Overall Response) --------------------------------------
-message("Deriving BOR (confirmed response per SAP)...")
+message("\nOVRLRESP records created: ", nrow(ovrlresp))
 
-# REVISIT: Confirmed response per SAP (≥28-day interval).
-#          See artifacts/NPM-008/Open-questions-cdisc.md R3
+# --- Derive BOR (Best Overall Response) with confirmation --------------------
+
+# REVISIT: Confirmed response per SAP (≥28-day interval)
+# See projects/exelixis-sap/artifacts/Open-questions-cdisc.md R3
 #
-# BOR Logic:
-# 1. Confirmed CR: Any CR with a second CR/PR ≥28 days later → BOR = CR
-# 2. Confirmed PR: Any PR with a second PR/CR ≥28 days later (no confirmed CR) → BOR = PR
-# 3. SD (no confirmed CR/PR): → BOR = SD
-# 4. Only PD (no SD/CR/PR): → BOR = PD
-# 5. No post-baseline assessments: → BOR = NE
+# BOR logic (RECIST 1.1 — confirmed response):
+# 1. Confirmed CR: CR with second CR/PR ≥28 days later → BOR = CR
+# 2. Confirmed PR: PR with second PR/CR ≥28 days later (no confirmed CR) → BOR = PR
+# 3. SD present (no confirmed CR/PR) → BOR = SD
+# 4. Only PD (no SD/CR/PR) → BOR = PD
+# 5. No evaluable post-baseline assessments → BOR = NE
 
-# Get post-baseline assessments ordered by date
-adrs_post_bl <- adrs_ovrl %>%
-  filter(ADT > TRTSDT, !is.na(AVALC)) %>%
-  arrange(USUBJID, ADT)
-
-# Derive BOR per subject
-bor_derivation <- adrs_post_bl %>%
-  group_by(USUBJID) %>%
-  summarise(
-    # Check for confirmed CR
-    confirmed_cr = any(sapply(seq_along(AVALC), function(i) {
-      if (i == length(AVALC)) return(FALSE)
-      if (AVALC[i] != "CR") return(FALSE)
-      # Check if any subsequent assessment is CR or PR and ≥28 days later
-      any(AVALC[(i+1):length(AVALC)] %in% c("CR", "PR") &
-            ADT[(i+1):length(AVALC)] - ADT[i] >= 28)
-    })),
-
-    # Check for confirmed PR (only if no confirmed CR)
-    confirmed_pr = any(sapply(seq_along(AVALC), function(i) {
-      if (i == length(AVALC)) return(FALSE)
-      if (AVALC[i] != "PR") return(FALSE)
-      # Check if any subsequent assessment is PR or CR and ≥28 days later
-      any(AVALC[(i+1):length(AVALC)] %in% c("CR", "PR") &
-            ADT[(i+1):length(AVALC)] - ADT[i] >= 28)
-    })),
-
-    # Check for SD
+bor <- ovrlresp %>%
+  dplyr::filter(ANL01FL == "Y") %>%  # Post-baseline only
+  dplyr::group_by(USUBJID) %>%
+  dplyr::arrange(USUBJID, ADT) %>%
+  dplyr::summarise(
+    STUDYID = dplyr::first(STUDYID),
+    TRTSDT = dplyr::first(TRTSDT),
+    # Check for confirmed CR: Any CR with CR/PR ≥28 days later
+    has_confirmed_cr = any(
+      AVALC == "CR" &
+      sapply(seq_along(AVALC), function(i) {
+        if (AVALC[i] == "CR") {
+          any(AVALC[(i+1):length(AVALC)] %in% c("CR", "PR") &
+              (ADT[(i+1):length(ADT)] - ADT[i]) >= 28, na.rm = TRUE)
+        } else {
+          FALSE
+        }
+      })
+    ),
+    # Check for confirmed PR: Any PR with PR/CR ≥28 days later
+    has_confirmed_pr = any(
+      AVALC == "PR" &
+      sapply(seq_along(AVALC), function(i) {
+        if (AVALC[i] == "PR") {
+          any(AVALC[(i+1):length(AVALC)] %in% c("PR", "CR") &
+              (ADT[(i+1):length(ADT)] - ADT[i]) >= 28, na.rm = TRUE)
+        } else {
+          FALSE
+        }
+      })
+    ),
     has_sd = any(AVALC == "SD"),
-
-    # Check for PD
     has_pd = any(AVALC == "PD"),
-
-    # Get earliest post-baseline assessment date for BOR record
-    bor_dt = min(ADT),
-
     .groups = "drop"
   ) %>%
-  mutate(
-    BOR_AVALC = case_when(
-      confirmed_cr ~ "CR",
-      confirmed_pr ~ "PR",
+  dplyr::mutate(
+    PARAMCD = "BOR",
+    PARAM = "Best Overall Response by Investigator (Confirmed)",
+    AVALC = dplyr::case_when(
+      has_confirmed_cr ~ "CR",
+      has_confirmed_pr ~ "PR",
       has_sd ~ "SD",
       has_pd ~ "PD",
       TRUE ~ "NE"
     ),
     # NOTE: Study-specific AVAL coding — not CDISC standard
-    BOR_AVAL = case_when(
-      BOR_AVALC == "CR" ~ 1,
-      BOR_AVALC == "PR" ~ 2,
-      BOR_AVALC == "SD" ~ 3,
-      BOR_AVALC == "PD" ~ 4,
-      BOR_AVALC == "NE" ~ 5,
+    AVAL = dplyr::case_when(
+      AVALC == "CR" ~ 1,
+      AVALC == "PR" ~ 2,
+      AVALC == "SD" ~ 3,
+      AVALC == "PD" ~ 4,
+      AVALC == "NE" ~ 5,
       TRUE ~ NA_real_
-    )
-  )
-
-# Handle subjects with no post-baseline assessments
-subjects_no_post_bl <- adsl %>%
-  anti_join(adrs_post_bl %>% distinct(USUBJID), by = "USUBJID") %>%
-  select(USUBJID, TRTSDT) %>%
-  mutate(
-    BOR_AVALC = "NE",
-    BOR_AVAL = 5,
-    bor_dt = as.numeric(NA)
-  )
-
-# Combine BOR derivations
-bor_all <- bind_rows(
-  bor_derivation %>% select(USUBJID, BOR_AVALC, BOR_AVAL, bor_dt),
-  subjects_no_post_bl %>% select(USUBJID, BOR_AVALC, BOR_AVAL, bor_dt)
-)
-
-# Create BOR records
-adrs_bor <- bor_all %>%
-  left_join(adsl %>% select(USUBJID, TRTSDT), by = "USUBJID") %>%
-  left_join(dm %>% select(USUBJID, STUDYID), by = "USUBJID") %>%
-  mutate(
-    PARAMCD = "BOR",
-    PARAM = "Best Overall Response (Confirmed per RECIST 1.1)",
-    AVALC = BOR_AVALC,
-    AVAL = BOR_AVAL,
-    ADT = bor_dt,
-    ADY = if_else(!is.na(bor_dt),
-                  if_else(as.Date(bor_dt, origin = "1970-01-01") >= as.Date(TRTSDT, origin = "1970-01-01"),
-                          as.numeric(as.Date(bor_dt, origin = "1970-01-01") - as.Date(TRTSDT, origin = "1970-01-01")) + 1,
-                          as.numeric(as.Date(bor_dt, origin = "1970-01-01") - as.Date(TRTSDT, origin = "1970-01-01"))),
-                  NA_real_),
-    AVISIT = "Overall",
-    AVISITN = 999,
-    ANL01FL = "Y",
-    ABLFL = NA_character_
+    ),
+    # BOR record has no specific date — set to missing
+    ADT = NA_real_,
+    ADY = NA_integer_,
+    VISIT = NA_character_,
+    VISITNUM = NA_real_,
+    ABLFL = NA_character_,
+    ANL01FL = "Y"  # BOR is included in primary analysis
   ) %>%
-  select(-bor_dt)
+  dplyr::select(
+    STUDYID, USUBJID, PARAMCD, PARAM, AVALC, AVAL, ADT, ADY, VISIT, VISITNUM,
+    ABLFL, ANL01FL
+  )
 
-message("  BOR records created: ", nrow(adrs_bor))
+message("BOR records created: ", nrow(bor))
+message("BOR distribution:")
+print(table(bor$AVALC, useNA = "ifany"))
 
 # --- Combine OVRLRESP and BOR records ----------------------------------------
-message("Combining OVRLRESP and BOR records...")
 
-adrs <- bind_rows(
-  adrs_ovrl %>% select(STUDYID, USUBJID, PARAMCD, PARAM, AVAL, AVALC,
-                       ADT, ADY, AVISIT, AVISITN, ABLFL, ANL01FL),
-  adrs_bor %>% select(STUDYID, USUBJID, PARAMCD, PARAM, AVAL, AVALC,
-                      ADT, ADY, AVISIT, AVISITN, ABLFL, ANL01FL)
-) %>%
-  arrange(USUBJID, PARAMCD, AVISITN)
+# Remove TRTSDT helper column from ovrlresp before combining
+ovrlresp <- ovrlresp %>%
+  dplyr::select(-TRTSDT)
 
-message("  Total ADRS rows: ", nrow(adrs))
+adrs <- dplyr::bind_rows(ovrlresp, bor) %>%
+  dplyr::arrange(USUBJID, PARAMCD, ADT)
 
 # --- Validation checks -------------------------------------------------------
-message("\n=== Validation Checks ===")
-message("Row count: ", nrow(adrs))
-message("Subject count: ", n_distinct(adrs$USUBJID))
-message("PARAMCD distribution:")
-print(table(adrs$PARAMCD, useNA = "ifany"))
-message("\nBOR AVALC distribution:")
-print(table(adrs %>% filter(PARAMCD == "BOR") %>% pull(AVALC), useNA = "ifany"))
-message("\nABLFL distribution:")
-print(table(adrs$ABLFL, useNA = "ifany"))
 
-# Check for missing key variables
-key_vars <- c("STUDYID", "USUBJID", "PARAMCD", "AVALC", "AVAL")
-message("\nMissing values in key variables:")
-missing_counts <- sapply(adrs[, key_vars], function(x) sum(is.na(x)))
-print(missing_counts)
+message("\n=== Step 7: Validation ===")
+message("Total ADRS records: ", nrow(adrs))
+message("Subjects in ADRS: ", dplyr::n_distinct(adrs$USUBJID))
+message("OVRLRESP records: ", sum(adrs$PARAMCD == "OVRLRESP", na.rm = TRUE))
+message("BOR records: ", sum(adrs$PARAMCD == "BOR", na.rm = TRUE))
 
-# Check that all subjects are in DM
-stopifnot("All ADRS subjects must be in DM" = all(adrs$USUBJID %in% dm$USUBJID))
-message("✓ All subjects in ADRS are present in DM")
+# Check all subjects are in DM
+if (!all(adrs$USUBJID %in% dm$USUBJID)) {
+  stop("ADRS contains subjects not found in DM", call. = FALSE)
+}
+message("✓ All ADRS subjects exist in DM")
 
-# Check unique keys
-key_combo <- adrs %>%
-  group_by(USUBJID, PARAMCD, AVISITN) %>%
-  filter(n() > 1)
-stopifnot("Key combination (USUBJID, PARAMCD, AVISITN) must be unique" = nrow(key_combo) == 0)
-message("✓ Key combination (USUBJID, PARAMCD, AVISITN) is unique")
+# Check unique keys (USUBJID + PARAMCD + ADT for OVRLRESP)
+adrs_ovrlresp <- adrs %>% dplyr::filter(PARAMCD == "OVRLRESP")
+if (any(duplicated(adrs_ovrlresp[, c("USUBJID", "PARAMCD", "ADT")]))) {
+  stop("Duplicate keys found in OVRLRESP records (USUBJID + PARAMCD + ADT)",
+       call. = FALSE)
+}
+message("✓ No duplicate OVRLRESP keys")
 
-# --- Apply attributes and write XPT ------------------------------------------
-message("\n=== Applying attributes and writing XPT ===")
+# Check BOR: one record per subject
+adrs_bor <- adrs %>% dplyr::filter(PARAMCD == "BOR")
+if (any(duplicated(adrs_bor[, c("USUBJID", "PARAMCD")]))) {
+  stop("Duplicate BOR records found for some subjects", call. = FALSE)
+}
+message("✓ One BOR record per subject")
 
-# Build metadata frame for xportr
+# Check AVAL coding
+invalid_aval <- adrs %>%
+  dplyr::filter(!is.na(AVAL) & !AVAL %in% 1:5)
+if (nrow(invalid_aval) > 0) {
+  stop("Invalid AVAL values found (must be 1-5)", call. = FALSE)
+}
+message("✓ All AVAL values in valid range (1-5)")
+
+# Check ANL01FL is Y or blank
+invalid_anl01fl <- adrs %>%
+  dplyr::filter(!is.na(ANL01FL) & ANL01FL != "Y")
+if (nrow(invalid_anl01fl) > 0) {
+  stop("Invalid ANL01FL values found (must be Y or blank)", call. = FALSE)
+}
+message("✓ ANL01FL uses Y/blank convention")
+
+# --- Apply xportr attributes -------------------------------------------------
+
 adrs_meta <- tibble::tibble(
-  variable = c("STUDYID", "USUBJID", "PARAMCD", "PARAM", "AVAL", "AVALC",
-               "ADT", "ADY", "AVISIT", "AVISITN", "ABLFL", "ANL01FL"),
-  label = c("Study Identifier", "Unique Subject Identifier",
-            "Parameter Code", "Parameter",
-            "Analysis Value (Numeric)", "Analysis Value (Character)",
-            "Analysis Date", "Analysis Relative Day",
-            "Analysis Visit", "Analysis Visit Number",
-            "Baseline Record Flag", "Analysis Record Flag 01"),
-  type = c("character", "character", "character", "character",
-           "numeric", "character", "numeric", "numeric",
-           "character", "numeric", "character", "character")
+  variable = c("STUDYID", "USUBJID", "PARAMCD", "PARAM", "AVALC", "AVAL",
+               "ADT", "ADY", "VISIT", "VISITNUM", "ABLFL", "ANL01FL"),
+  label = c(
+    "Study Identifier",
+    "Unique Subject Identifier",
+    "Parameter Code",
+    "Parameter",
+    "Analysis Value (Character)",
+    "Analysis Value (Numeric)",
+    "Analysis Date",
+    "Analysis Relative Day",
+    "Visit Name",
+    "Visit Number",
+    "Baseline Record Flag",
+    "Analysis Record Flag 01"
+  ),
+  type = c(
+    "character", "character", "character", "character", "character", "numeric",
+    "numeric", "integer", "character", "numeric", "character", "character"
+  )
 )
 
 adrs <- adrs %>%
   xportr::xportr_label(metadata = adrs_meta, domain = "ADRS") %>%
   xportr::xportr_type(metadata = adrs_meta, domain = "ADRS")
 
-# Save dataset
-saveRDS(adrs, "cohort/output-data/adam/adrs.rds")
-haven::write_xpt(adrs, "cohort/output-data/adam/adrs.xpt")
-message("✓ ADRS dataset saved to: cohort/output-data/adam/adrs.xpt")
+# --- Save dataset ------------------------------------------------------------
 
-message("\n=== ADRS derivation complete ===")
+haven::write_xpt(
+  adrs,
+  "projects/exelixis-sap/output-data/adam/adrs.xpt",
+  version = 5
+)
+
+message("\n=== Step 8: Save Complete ===")
+message("Dataset saved to: projects/exelixis-sap/output-data/adam/adrs.xpt")
+message("Program complete: ", Sys.time())

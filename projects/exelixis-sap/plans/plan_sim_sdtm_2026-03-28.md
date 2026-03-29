@@ -1,11 +1,12 @@
 # SDTM Simulation Plan: NPM-008 / XB010-101 External Control Arm
-**Date:** 2026-03-25
+
+**Date:** 2026-03-28
 **Study:** Exelixis XB010-101 ECA — Metastatic NSCLC External Controls
 **Protocol:** NPM-008
-**Domains:** 18 (DM, EX, EC, CM, PR, SU, AE, DS, HO, MH, IE, BS, LB, VS, QS, RS, TR, TU, SC)
+**Domains:** 18 (DM, IE, MH, SC, SU, VS, LB, BS, EX, EC, CM, PR, QS, TU, TR, RS, AE, HO, DS)
+**Working Directory:** projects/exelixis-sap/
 
 ---
-
 ## 1. Architecture
 
 ### Folder layout
@@ -103,10 +104,9 @@ Each domain program is a self-contained R script that reads upstream XPTs (or in
 
 ---
 
-## 3. Study-Level Design Parameters
+---
 
-Before per-domain specs, establish the patient-level outcomes that drive cross-domain consistency. These are generated in `sim_dm.R` and carried forward.
-
+## 3. Simulation Architecture
 ### 3.1 Outcome assignment (generated once per subject in DM)
 
 Each subject is assigned these latent outcome variables when DM is built:
@@ -144,10 +144,170 @@ Sample each subject's BOR from:
 
 ---
 
-## 4. Per-Domain Simulation Specifications
+### 3.2 Seed Strategy
+
+`sim_all.R` sets `set.seed(42)` before sourcing any domain program. Each domain program uses its own seed derived as `set.seed(42 + domain_offset)` where domain_offset is the domain's position in the execution order (DM=1, EX=2, ... DS=19). This allows any single domain to be re-run in isolation reproducibly.
 
 ---
 
+### 3.3 Date De-identification
+
+Each subject gets a per-patient shift drawn from Uniform(-14, 14) days. This shift is applied uniformly to ALL dates for that subject. Store the shift as a latent variable in DM (not exported) to apply consistently across domains.
+
+---
+
+### 3.4 Cross-Domain Consistency
+
+Cross-domain consistency is maintained through the dependency chain (Section 2). Each domain reads upstream domains and ensures all subjects, dates, and relationships are consistent.
+
+---
+### 3.5: Reusable Validation Functions
+
+Three validation functions are required to validate SDTM domain data before writing XPT files. These functions are implemented in:
+- `R/validate_sdtm_domain.R`
+- `R/validate_sdtm_cross_domain.R`
+- `R/log_sdtm_result.R`
+
+Per `plans/plan_build_validation_functions_2026-03-28.md`.
+
+---
+
+### validate_sdtm_domain()
+
+**Purpose:** Universal + domain-specific validation called by every `sim_*.R` before `write_xpt()`.
+
+**Interface:**
+```r
+validate_sdtm_domain(
+  domain_df,           # data frame to validate
+  domain_code,         # character: domain code (e.g., "AE")
+  dm_ref,              # data frame: DM dataset for cross-checks
+  expected_rows,       # numeric vector c(min, max)
+  ct_reference = NULL, # named list of CT value vectors
+  domain_checks = NULL # function for custom checks
+)
+```
+
+**Universal checks (U1-U10):**
+
+| ID | Check | Action |
+|----|-------|--------|
+| U1 | DOMAIN matches expected | stop() |
+| U2 | STUDYID = "NPM008" | stop() |
+| U3 | USUBJID format | stop() |
+| U4 | All USUBJID in DM | stop() |
+| U5 | --SEQ unique per subject | stop() |
+| U6 | No NA in required vars | stop() |
+| U7 | Date format ISO 8601 | stop() |
+| U8 | Row count in range | warning() |
+| U9 | No duplicate rows | stop() |
+| U10 | CT values valid | stop() |
+
+**Domain-specific checks:** For each domain (4.1-4.19), specify a validation closure that checks domain-specific business rules:
+
+| Domain | Key checks |
+|--------|-----------|
+| DM | Exactly 40 rows; RFSTDTC < RFENDTC; DTHFL distribution ~70%; all latent vars non-NA |
+| EX | EXSTDTC = RFSTDTC; EXENDTC >= EXSTDTC; valid drug names |
+| AE | AESTDTC within [EXSTDTC, EXENDTC]; AESEV/AETOXGR mapping; min 1 AE per subject |
+| TR | All TULNKID exist in TU; TRSTRESN >= 0; RECIST constraints per BOR |
+| RS | BOR matches DM latent BOR for all 40 subjects |
+| HO | Every HOHNKID maps to valid AESEQ; HOSTDTC >= AESTDTC |
+| DS | 40 rows; DSDECOD="DEATH" iff DTHFL="Y"; DSDTC >= RFSTDTC |
+| LB | Biomarker values consistent with DM latent vars (PDL1, EGFR, ALK) |
+| TU | TARGET count matches DM.n_target_lesions; METS match DM mets flags |
+| EC | ECSTDTC >= EXSTDTC; ECENDTC <= EXENDTC; cycle count matches route |
+| CM | Prior therapy dates < EXSTDTC; n_prior_lots matches DM |
+| IE | 10 criteria per subject; IECAT valid |
+| MH | Prior conditions before EXSTDTC; valid MHTERM |
+| SC | Screening dates before EXSTDTC |
+| SU | 1 surgery record per subject with surgery flag |
+| VS | All VSTESTCD valid; values in physiologic range |
+| PR | Procedure dates within study period |
+| QS | Baseline and follow-up assessments; valid QSTESTCD |
+| BS | Specimen collection dates match LB biomarker dates |
+
+---
+
+### validate_sdtm_cross_domain()
+
+**Purpose:** Post-execution validation after all 18 domains generated.
+
+**Interface:**
+```r
+validate_sdtm_cross_domain(
+  sdtm_dir = "output-data/sdtm/",
+  log_dir = "logs/"
+)
+```
+
+**Checks (X1-X13):**
+
+| ID | Check | Severity |
+|----|-------|----------|
+| X1 | Referential integrity: all USUBJID in DM | BLOCKING |
+| X2 | All domains have 40 distinct USUBJID | BLOCKING |
+| X3 | No events before RFSTDTC (except MH, CM) | BLOCKING |
+| X4 | No events after DTHDTC for deceased | BLOCKING |
+| X5 | TU.TULNKID ↔ TR.TULNKID | BLOCKING |
+| X6 | AE.AESEQ ↔ HO.HOHNKID | BLOCKING |
+| X7 | BS.BSREFID ↔ LB dates | WARNING |
+| X8 | DS DEATH = DM DTHFL | BLOCKING |
+| X9 | DS.DSDTC = DM.DTHDTC | BLOCKING |
+| X10 | RS BOR = DM BOR | BLOCKING |
+| X11 | Domain cardinality | WARNING |
+| X12 | SEQ uniqueness | BLOCKING |
+| X13 | File inventory (18 XPT) | BLOCKING |
+
+**Output:** Markdown report at `logs/cross_domain_validation_{date}.md`
+
+---
+
+### log_sdtm_result()
+
+**Purpose:** Structured logging from within `sim_*.R` programs.
+
+**Interface:**
+```r
+log_sdtm_result(
+  domain_code, wave, row_count, col_count,
+  validation_result, notes = NULL, log_dir = "logs/"
+)
+```
+
+**Output:** Appends to `logs/sdtm_domain_log_{date}.md`
+
+---
+
+
+---
+
+### 3.6: CT Pre-Flight Validation
+
+Before Wave 0 execution, the orchestrator must:
+
+1. Query CDISC RAG for these codelists:
+   - SEX (C66731), RACE (C74457), ETHNIC (C66790)
+   - AEOUT (C66768), AEACN (C66767), AEREL (C66769), AESEV (C66769)
+   - DSDECOD (C66727), EXROUTE (C66729), EXDOSFRM (C66726)
+   - VSTESTCD (C66741), LBTESTCD (C65047)
+   - IECAT
+
+2. Store results in `output-data/sdtm/ct_reference.rds` as named list
+
+3. Each `sim_*.R` loads this file and passes relevant vectors to `validate_sdtm_domain()`
+
+4. If RAG returns empty: log gap, fall back to training knowledge, flag as NOTE
+
+**RAG note:** The CDISC RAG has CT definitions but NOT SDTM-IG variable specs. Use it only for CT lookups.
+
+---
+
+---
+
+## 4. Per-Domain Simulation Specifications
+
+---
 ### 4.1 DM — Demographics
 **Structure:** One record per subject (N=40)
 
@@ -708,27 +868,219 @@ DSSEQ = 1 per subject.
 
 ---
 
-## 5. Controlled Terminology Reference
+---
+## 5: Program Template
 
-| Variable | Codelist | Allowed Values |
-|----------|----------|---------------|
-| DM.SEX | SEX | M, F, U |
-| DM.RACE | RACE | AMERICAN INDIAN OR ALASKA NATIVE, ASIAN, BLACK OR AFRICAN AMERICAN, MULTIPLE, NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER, NOT REPORTED, UNKNOWN, WHITE |
-| DM.ETHNIC | ETHNIC | HISPANIC OR LATINO, NOT HISPANIC OR LATINO, NOT REPORTED, UNKNOWN |
-| EX.EXROUTE | ROUTE | ORAL, INTRAVENOUS, INTRAMUSCULAR, SUBCUTANEOUS |
-| AE.AETOXGR | TOXGR | 1, 2, 3, 4, 5 |
-| AE.AEACN | ACN | DOSE NOT CHANGED, DOSE REDUCED, DRUG INTERRUPTED, DRUG WITHDRAWN, NOT APPLICABLE, NOT EVALUABLE, UNKNOWN |
-| DS.DSDECOD | NCOMPLT | COMPLETED, DEATH, DISEASE RELAPSE, LOST TO FOLLOW-UP, PHYSICIAN DECISION, SERIOUS ADVERSE EVENT, WITHDRAWAL BY SUBJECT |
-| DS.DSCAT | DSCAT | DISPOSITION EVENT |
-| IE.IECAT | IECAT | INCLUSION, EXCLUSION |
-| LB.MSISTAT | (custom) | MSI-HIGH, MSS, NOT TESTED |
-| TR.TRMETHOD | (SDTM) | CT, Spiral CT, MRI, PET/CT, PET |
-| TU.TUORRES | (SDTM) | TARGET, NON-TARGET, METASTASIS |
-| VS.VSTESTCD | VSTESTCD | HR, SYSBP, DIABP, SPO2, RESP, TEMP, HT, WT, BMI |
+Each domain simulation program follows this structure:
+
+```r
+# =============================================================================
+# sim_{domain}.R — {Domain Full Name}
+# Study: NPM-008 / XB010-101 ECA
+# Seed: 42 + {offset}
+# Wave: {wave_number}
+# Dependencies: {list_of_upstream_rds_files}
+# Expected rows: {min}-{max}
+# Working directory: projects/exelixis-sap/
+# =============================================================================
+
+set.seed(42 + {offset})
+
+# --- Load dependencies -------------------------------------------------------
+dm_full <- readRDS("output-data/sdtm/dm.rds")
+# ... other upstream domains as needed
+
+# --- Load CT reference (if applicable) ----------------------------------------
+ct_ref <- readRDS("output-data/sdtm/ct_reference.rds")
+
+# --- Source validation functions ----------------------------------------------
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
+
+# --- Generate domain data -----------------------------------------------------
+# ... (domain-specific logic from plan section 4.X)
+
+# --- Domain-specific validation closure ----------------------------------------
+domain_checks <- function(df, dm_ref) {
+  checks <- list()
+  # ... domain-specific checks defined in Section 3.5
+  checks
+}
+
+# --- Validate before writing ---------------------------------------------------
+validation <- validate_sdtm_domain(
+  domain_df      = {domain}_df,
+  domain_code    = "{DOMAIN}",
+  dm_ref         = dm_full,
+  expected_rows  = c({min}, {max}),
+  ct_reference   = ct_ref[c("{relevant_codelists}")],
+  domain_checks  = domain_checks
+)
+
+# --- Write output (only if validation passes) ---------------------------------
+haven::write_xpt({domain}_df, path = "output-data/sdtm/{domain}.xpt")
+saveRDS({domain}_df, "output-data/sdtm/{domain}.rds")
+
+# --- Log result ---------------------------------------------------------------
+log_sdtm_result(
+  domain_code       = "{DOMAIN}",
+  wave              = {wave_number},
+  row_count         = nrow({domain}_df),
+  col_count         = ncol({domain}_df),
+  validation_result = validation,
+  notes             = c({notes})
+)
+
+message("sim_{domain}.R complete: ", nrow({domain}_df), " rows written")
+```
+
+**Template placeholders:**
+- `{domain}`: lowercase domain code (e.g., "dm", "ae")
+- `{DOMAIN}`: uppercase domain code (e.g., "DM", "AE")
+- `{Domain Full Name}`: human-readable domain name (e.g., "Demographics", "Adverse Events")
+- `{offset}`: domain offset for seed (1 for DM, 2 for IE, ..., 19 for DS)
+- `{wave_number}`: wave number (0-4)
+- `{list_of_upstream_rds_files}`: comma-separated list of dependencies (e.g., "dm.rds, ex.rds")
+- `{min}`, `{max}`: expected row count range
+- `{relevant_codelists}`: CT codelist names relevant to this domain (e.g., "SEX", "RACE")
+- `{notes}`: optional notes for logging
 
 ---
 
-## 6. CDISC Compliance Checklist
+---
+
+## 6. Output Specifications
+
+All SDTM XPT files are written to: `projects/exelixis-sap/output-data/sdtm/`
+
+Each domain also saved as RDS for faster re-reading: `projects/exelixis-sap/output-data/sdtm/{domain}.rds`
+
+Logs written to: `projects/exelixis-sap/logs/`
+
+---
+## 7: Orchestration Guide
+
+### Wave Structure
+
+Execution is organized into 6 waves. Each wave is a synchronization point: all domains in a wave run in parallel; the next wave starts only when ALL agents in the prior wave return SUCCESS.
+
+**Wave assignments:**
+
+```
+Wave 0:  DM                                          (1 agent, sequential)
+Wave 1:  IE, MH, SC, SU, VS, LB, PR, QS, TU, EX, DS  (11 agents, parallel)
+Wave 2:  AE, BS, EC, CM                              (4 agents, parallel)
+Wave 3:  HO, TR                                      (2 agents, parallel)
+Wave 4:  RS                                           (1 agent, sequential)
+Wave 5:  Cross-domain validation + data contract      (1 agent, sequential)
+```
+
+**Total agents spawned:** 1 + 11 + 4 + 2 + 1 + 1 = 20 agents
+
+---
+
+### Dependency Rationale
+
+| Domain | Reads | Wave placement |
+|--------|-------|----------------|
+| DM | (none) | Wave 0 — foundation |
+| IE, MH, SC, SU, VS, LB, PR, QS, TU, EX, DS | dm.rds only | Wave 1 — parallel after DM |
+| AE, BS, EC, CM | dm.rds + one other (ex.rds or lb.rds) | Wave 2 — parallel after Wave 1 |
+| HO, TR | dm.rds + domain from Wave 2 (ae.rds or tu.rds) | Wave 3 — parallel after Wave 2 |
+| RS | dm.rds + tr.rds | Wave 4 — sequential after Wave 3 |
+
+**Wave 1 domains (11):** All depend only on DM, so they can run in parallel once DM completes.
+**Wave 2 domains (4):** AE/EC need EX; BS needs LB; CM needs EX+LB. All Wave 1 outputs available.
+**Wave 3 domains (2):** HO needs AE; TR needs TU. All Wave 2 outputs available.
+**Wave 4 domain (1):** RS needs TR. Must wait for Wave 3.
+**Wave 5 (validation):** Reads all 18 domains. Must wait for Wave 4.
+
+---
+
+### Wave Gate Rules
+
+1. A wave starts only when ALL agents in the prior wave return SUCCESS
+2. Each agent runs its `sim_*.R`, which internally calls `validate_sdtm_domain()`
+3. If any agent returns FAIL, orchestrator logs failure and HALTS — no subsequent waves
+4. Between-wave checkpoint: log summary table of completed domains
+5. Orchestrator uses **parallel Agent tool calls** within each wave (multiple Agent invocations in a single message)
+
+---
+
+### Wave 0 Extra Validation (DM Smoke Tests)
+
+After DM completes, before proceeding to Wave 1, verify:
+- AGE: mean in [60, 68], sd in [6, 12]
+- SEX: M count in [18, 26] (target ~55%)
+- RACE: WHITE count in [24, 32] (target ~70%)
+- DTHFL="Y": count in [26, 30] (target ~70%)
+- BOR: PR [5-10], SD [13-19], PD [11-17], NE [1-5]
+- All latent variables non-NA
+- RFSTDTC range: 2022-01-01 to 2025-06-30
+
+These are tolerance checks, not exact matches. They catch catastrophic distribution errors early.
+
+---
+
+### Orchestration Instructions
+
+**For the orchestrator (main conversation):**
+
+1. **Pre-Flight (before Wave 0):**
+   - Verify directory structure: `output-data/sdtm/`, `logs/` exist
+   - Query CDISC RAG for CT references (Section 3.6)
+   - Save CT reference to `output-data/sdtm/ct_reference.rds`
+   - Log pre-flight results to orchestration log
+
+2. **Wave 0: DM**
+   - Spawn 1 r-clinical-programmer agent for DM
+   - Pass: domain code, wave number, seed offset, expected rows, plan section reference
+   - Agent produces: `dm.xpt`, `dm.rds`, dev log
+   - Orchestrator runs DM smoke tests
+   - If smoke tests FAIL: HALT and report
+   - If PASS: proceed to Wave 1
+
+3. **Wave 1: 11 domains**
+   - Spawn 11 r-clinical-programmer agents in parallel (single message with 11 Agent tool calls)
+   - Each agent gets: domain code, wave number, seed offset, expected rows, plan section reference
+   - Wait for all 11 to complete
+   - Log between-wave checkpoint: domains completed, validation status
+   - If any FAIL: HALT
+   - If all PASS: proceed to Wave 2
+
+4. **Wave 2: 4 domains**
+   - Spawn 4 r-clinical-programmer agents in parallel
+   - Same pattern as Wave 1
+   - Proceed to Wave 3 if all PASS
+
+5. **Wave 3: 2 domains**
+   - Spawn 2 r-clinical-programmer agents in parallel
+   - Same pattern
+   - Proceed to Wave 4 if all PASS
+
+6. **Wave 4: RS**
+   - Spawn 1 r-clinical-programmer agent
+   - Same pattern
+   - Proceed to Wave 5 if PASS
+
+7. **Wave 5: Cross-Domain Validation**
+   - Run `validate_sdtm_cross_domain()` function
+   - If data contract validator exists: run `validate_data_contract()`
+   - Log results to orchestration log
+   - If BLOCKING issues: HALT and report
+   - If PASS: mark overall execution SUCCESS
+
+8. **Final Summary:**
+   - Write summary table to orchestration log: domain, wave, rows, validation, duration
+   - Report overall verdict: PASS/FAIL
+
+---
+
+---
+
+---
+
+## 8. CDISC Compliance Checklist
 
 The r-clinical-programmer must verify each domain satisfies:
 
@@ -747,65 +1099,9 @@ The r-clinical-programmer must verify each domain satisfies:
 
 ---
 
-## 7. Orchestration Guide for the r-clinical-programmer
-
-### Step 1: Set up project structure
-Create `projects/exelixis-sap/` directory and `projects/exelixis-sap/output-data/sdtm/` directory. Install packages: `haven`, `xportr`, `tidyverse`.
-
-### Step 2: Write sim_dm.R first
-- Generate the 40-row subject spine
-- Assign all latent outcome variables (BOR, PFS/OS times, genomic profile, mets flags, etc.)
-- Write `dm.xpt`
-- Validate: 40 rows, all USUBJID unique, RFSTDTC < RFENDTC for all subjects, DTHFL="Y" count ~70% of subjects with OS < study period
-
-### Step 3: Write each domain program in execution order (see Section 2)
-Each program follows this pattern:
-1. `set.seed(42 + domain_offset)`
-2. Load DM (and any other required upstream data) from in-memory or read XPT
-3. Generate domain data frame using rules from Section 4
-4. Validate the domain (see per-domain checks below)
-5. Apply xportr pipeline (labels, types, lengths)
-6. Write XPT via `haven::write_xpt(domain_df, path = "projects/exelixis-sap/output-data/sdtm/<domain>.xpt")`
-
-### Step 4: Write sim_all.R
-- `set.seed(42)`
-- Source each sim_*.R file in execution order
-- Each file should be self-contained but accept a `dm` data frame argument (or read from XPT)
-- Final step: print a summary table showing nrow() for each domain
-
-### Per-domain validation checks
-
-| Domain | Key checks |
-|--------|-----------|
-| DM | nrow=40; no duplicate USUBJID; RFSTDTC < RFENDTC; DTHDTC > RFSTDTC where not missing |
-| EX | nrow=40; EXSTDTC = DM.RFSTDTC for all rows; EXENDTC > EXSTDTC |
-| EC | ECSTDTC >= EX.EXSTDTC; ECENDTC <= EX.EXENDTC |
-| AE | AESTDTC >= EX.EXSTDTC; AESTDTC <= EX.EXENDTC |
-| RS | BOR per subject in RS(CLINRES) matches DM latent BOR |
-| TR | PR subjects: minimum sum of target lesion sizes is ≤70% of baseline; PD subjects: final sum ≥120% of nadir |
-| DS | Every DM.DTHFL="Y" subject has a DS record with DSDECOD="DEATH" |
-| LB | No subject has ANC < 1.5, HEMOGL < 9.0, PLATELT < 100 in LBORRES |
-| TU | TULNKID values in TR all exist in TU for the same subject |
-
-### Step 5: Cross-domain consistency validation
-After all domains written, run a final validation:
-1. All USUBJIDs in every non-DM domain exist in DM
-2. Count distinct USUBJID per domain = 40
-3. BOR consistency: For each subject, the RS "CLINRES" RSORRES matches the BOR distribution target
-4. PFS/OS consistency: For deceased subjects, DTHDTC in DM matches DS.DSDTC
-
-### What constitutes a passing simulation
-- All 18 XPT files exist in `projects/exelixis-sap/output-data/sdtm/`
-- Each domain has N=40 distinct subjects
-- All CDISC compliance checks pass (see Section 6)
-- No R errors or warnings during execution of sim_all.R
-- BOR distribution: 15–20% responders (PR), 35–45% SD, 30–40% PD, ≤10% NE
-- Median PFS (Kaplan-Meier estimate from EX start/end dates) ≈ 5–7 months
-- Death flag in DM: ~65–75% subjects deceased
-
 ---
 
-## 8. Ambiguities and Assumptions
+## 9. Ambiguities and Assumptions
 
 The following variables have ambiguous or missing specifications in the data dictionary. The programmer should apply these assumptions:
 
@@ -822,4 +1118,133 @@ The following variables have ambiguous or missing specifications in the data dic
 
 ---
 
-*End of plan. This plan is sufficient to implement all 18 domains without referencing source artifacts.*
+---
+
+## 10: Logging & QA Artifacts
+
+All logs and reports produced during SDTM simulation execution.
+
+**Required artifacts:**
+
+| Artifact | Path | Written by |
+|----------|------|-----------|
+| Orchestration log | `logs/orchestration_log_sdtm_{date}.md` | Orchestrator (main conversation) |
+| Per-domain dev logs | `logs/dev_log_sim_{domain}_{date}.md` | r-clinical-programmer agents |
+| Machine validation log | `logs/sdtm_domain_log_{date}.md` | `log_sdtm_result()` calls |
+| Cross-domain validation | `logs/cross_domain_validation_{date}.md` | `validate_sdtm_cross_domain()` |
+| Data contract validation | `logs/data_contract_validation_{date}.md` | `validate_data_contract()` |
+| Consolidated QA report | `QA Analyses/qa_sdtm_{date}.md` | clinical-code-reviewer agent |
+
+---
+
+### Orchestration Log Format
+
+```markdown
+# Orchestration Log: SDTM Simulation — NPM-008
+
+**Date:** {date}
+**Plan:** plans/plan_sim_sdtm_{date}.md
+
+## Pre-Flight
+
+- CT reference: {codelist_count} codelists, {gap_count} gaps
+- Directory structure: verified
+- Packages: {list} — all available
+
+## Wave 0: DM
+
+- Agent spawned: {timestamp}
+- Implementation: SUCCESS/FAIL
+- Validation: PASS/FAIL ({check_count} checks)
+- DM smoke tests: PASS/FAIL
+- Row count: 40
+- Duration: {seconds}s
+
+## Wave 1: IE, MH, SC, SU, VS, LB, PR, QS, TU, EX, DS (11 parallel)
+
+### {DOMAIN}
+- Status: SUCCESS/FAIL
+- Validation: PASS/FAIL
+- Row count: {actual} (expected: {min}-{max})
+- Fix cycles: {n}
+
+### Between-Wave Check
+- Wave 1: {pass_count}/11 PASS
+- Cumulative: {total_pass}/{total_attempted}
+
+## Wave 2: AE, BS, EC, CM (4 parallel)
+...
+
+## Wave 3: HO, TR (2 parallel)
+...
+
+## Wave 4: RS
+...
+
+## Wave 5: Cross-Domain Validation
+- Cross-domain: PASS/FAIL ({blocking} BLOCKING, {warning} WARNING)
+- Data contract: PASS/FAIL
+
+## Summary Table
+
+| Domain | Wave | Rows | Cols | Validation | Fix Cycles | Duration |
+|--------|------|------|------|------------|------------|----------|
+
+## Final Verdict
+
+- Total domains: {n}/18
+- Total fix cycles: {n}
+- First-pass successes: {n}/18
+- Cross-domain: PASS/FAIL
+- Data contract: PASS/FAIL
+- **Overall: PASS/FAIL**
+```
+
+---
+
+### Per-Domain Dev Log Format
+
+Each r-clinical-programmer agent writes:
+
+```markdown
+# Development Log: sim_{DOMAIN}
+
+**Date:** {date}
+**Domain:** {DOMAIN} ({full_name})
+**Study:** NPM-008 / Exelixis XB010-101 NSCLC ECA
+**Agent:** r-clinical-programmer
+**Wave:** {wave_number}
+**Seed:** 42 + {offset} = {seed}
+
+## 1. Plan Review
+- Requirements from plan section 4.X
+- Key variables, expected row count, dependencies
+- Upstream domains required: {list}
+
+## 2. CDISC RAG Queries
+- CT lookups: {codelists_checked}
+- Findings: {values_confirmed_or_gaps}
+
+## 3. Implementation Notes
+- Approach taken
+- Deviations from plan (if any, with rationale)
+- Errors encountered and fixes applied
+- Internal iteration count: {n}
+
+## 4. Validation Results
+- Universal checks: {pass_count}/{total_count} PASS
+- Domain-specific checks: {pass_count}/{total_count} PASS
+- CT compliance: {codelists_checked} — PASS/FAIL
+- Row count: {actual} (expected: {min}-{max})
+- **Verdict: PASS/FAIL**
+
+## 5. Output
+- XPT: output-data/sdtm/{domain}.xpt — {rows} rows, {cols} cols
+- RDS: output-data/sdtm/{domain}.rds — {rows} rows, {cols} cols
+```
+
+---
+
+---
+
+*End of plan. This plan is sufficient to implement all 18 domains with validation, logging, and parallel execution.*

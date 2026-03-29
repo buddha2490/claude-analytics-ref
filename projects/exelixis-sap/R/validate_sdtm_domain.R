@@ -1,3 +1,10 @@
+# Required packages for validation function
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(stringr)
+  library(rlang)
+})
+
 #' Validate SDTM Domain
 #'
 #' Perform universal SDTM validation checks plus optional domain-specific checks.

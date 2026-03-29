@@ -1,10 +1,12 @@
 # =============================================================================
-# Program:    cohort/sim_vs.R
+# Program:    sim_vs.R
 # Purpose:    Simulate SDTM VS (Vital Signs) domain for NPM-008 / XB010-101
 # Domain:     VS
 # Author:     r-clinical-programmer agent
-# Date:       2026-03-27
+# Date:       2026-03-28
 # seed:       set.seed(48)  (VS is domain order 6; 42 + 6 = 48)
+# Wave:       1
+# Plan:       Section 4.6 (VS — Vital Signs)
 # =============================================================================
 
 library(tidyverse)
@@ -17,10 +19,13 @@ SEED    <- 48L
 
 # --- Load DM spine ------------------------------------------------------------
 
-dm <- readRDS("cohort/output-data/dm.rds") %>%
+dm <- readRDS("output-data/sdtm/dm.rds") %>%
   dplyr::select(USUBJID, RFSTDTC)
 
 n <- nrow(dm)  # 40 subjects
+
+message("=== Simulating VS (Vital Signs) Domain ===")
+message("Loaded DM: ", n, " subjects")
 
 # --- Truncation helper --------------------------------------------------------
 
@@ -226,9 +231,7 @@ vs_labels <- c(
   VSDTC    = "Date/Time of Measurements"
 )
 
-# --- Apply xportr labels and write XPT ----------------------------------------
-
-out_path <- "cohort/output-data/sdtm/vs.xpt"
+# --- Apply xportr labels and write outputs ------------------------------------
 
 # Apply SAS variable labels via the "label" column attribute that haven respects
 vs_labelled <- vs_final
@@ -238,12 +241,17 @@ for (v in names(vs_labels)) {
   }
 }
 
-saveRDS(vs_labelled, "cohort/output-data/sdtm/vs.rds")
-haven::write_xpt(vs_labelled, path = out_path, version = 5)
+# Save RDS
+saveRDS(vs_labelled, "output-data/sdtm/vs.rds")
+message("✓ Saved: output-data/sdtm/vs.rds")
 
-message("VS XPT written to: ", out_path)
+# Save XPT
+haven::write_xpt(vs_labelled, path = "output-data/sdtm/vs.xpt", version = 5)
+message("✓ Saved: output-data/sdtm/vs.xpt")
 
 # --- Final summary ------------------------------------------------------------
+
+message("\n--- VS Summary Statistics ---")
 
 summary_tbl <- vs_final %>%
   dplyr::group_by(VSTESTCD, VISIT) %>%
@@ -256,3 +264,5 @@ summary_tbl <- vs_final %>%
   )
 
 print(summary_tbl, n = 20)
+
+message("\n=== VS Domain Complete ===")

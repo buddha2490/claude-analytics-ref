@@ -1,7 +1,7 @@
 # Implementation Plan: ADaM Dataset Automation — NPM-008 Exelixis XB010-100
 
-**Date:** 2026-03-27
-**Status:** Ready — All blocking questions resolved; plan reviewed and hardened (2026-03-27)
+**Date:** 2026-03-29
+**Status:** Ready — All blocking questions resolved; plan reviewed and hardened (2026-03-29)
 **Requested by:** Brian Carter
 **Study:** Exelixis XB010-100 (NPM-008) — NSCLC Real-World Evidence ECA
 
@@ -106,7 +106,7 @@ ADBS, ADAE are off the critical path and do not block downstream datasets.
 - NPM Line of Therapy algorithm definition
 - Controlled terminology for LOTENDRSN
 
-**NPM LoT Algorithm — NSCLC parameters (resolved from SAP 2026-03-27):**
+**NPM LoT Algorithm — NSCLC parameters (resolved from SAP 2026-03-29):**
 
 ```
 Window:          45 days  — drugs started within 45 days of line start date are grouped into same line
@@ -268,10 +268,62 @@ Add `# REVISIT: NPM LoT algorithm — NSCLC-specific parameters from SAP. See pr
 **Complexity flags:**
 - **HIGH:** 101 variables with derivations spanning 11 source domains + ADLOT. See Section 5, Step 5 for the recommended modular implementation approach.
 - **HIGH:** CCISCORE requires implementing the Charlson algorithm. **RESOLVED: Use Quan 2011 updated weights, derived from MH.MHTERM. Add a `# REVISIT: Quan 2011 weights used — see projects/exelixis-sap/artifacts/Open-questions-cdisc.md R1/R2` comment in the CCISCORE derivation block.**
-- **MEDIUM:** 20+ biomarker flags require knowing the exact LBTESTCD values used in the simulated data. Agent must explore LB domain first.
 - **MEDIUM:** Comorbidity flags require term-matching against MH.MHTERM — need to confirm the exact term lists.
 - **MEDIUM:** Staging derivations depend on how TNM data is structured in MH.
 - **NOTE:** DM does not contain ARM, ARMCD, or ACTARM — only ACTARMCD is present. Derive ARM/ACTARM from ACTARMCD using a lookup table if needed, or omit them if the spec does not require them.
+
+⚠ **COMPLEXITY ALERT: 20 biomarker flags use identical pattern**
+
+**Detected pattern:**
+- Source: LB.LBSTRESC
+- Operation: Pattern match for mutation status (ALTERED/NOT ALTERED/NOT TESTED)
+- Parameters: Test code varies (EGFR, KRAS, ALK, ROS1, RET, MET, ERBB2, NTRK1, NTRK2, NTRK3, TP53, RB1, PDL1, MSI, TMB, ...)
+
+**Recommend helper function:**
+
+```r
+create_biomarker_flag <- function(lb_data, test_code, var_name) {
+  # Filter to baseline assessment for the specified test
+  test_result <- lb_data %>%
+    filter(LBTESTCD == test_code, LBBLFL == "Y") %>%
+    select(USUBJID, LBSTRESC)
+
+  # Create flag variable
+  result <- test_result %>%
+    mutate(
+      !!var_name := case_when(
+        LBSTRESC == "NOT ALTERED" ~ "N",
+        LBSTRESC == "NOT TESTED" ~ NA_character_,
+        str_detect(LBSTRESC, "ALTERED") ~ "Y",  # Catches "ALTERED" but not "NOT ALTERED"
+        TRUE ~ NA_character_
+      )
+    ) %>%
+    select(USUBJID, !!sym(var_name))
+
+  return(result)
+}
+```
+
+**Usage:**
+```r
+# Apply 20 times for all biomarker flags
+egfr <- create_biomarker_flag(lb_bl, "EGFR", "EGFRMUT")
+kras <- create_biomarker_flag(lb_bl, "KRAS", "KRASMUT")
+alk <- create_biomarker_flag(lb_bl, "ALK", "ALK")
+# ... (17 more)
+```
+
+**Benefits:**
+- Single point of maintenance for pattern matching logic
+- Easier to update if terminology changes (e.g., "POSITIVE" vs "ALTERED")
+- Reduces cognitive load (20 derivations → 1 function + 20 calls)
+- Fewer copy-paste errors
+
+**Orchestration note:**
+Programmer agent should implement helper function *first* (with tests), then apply 20 times.
+
+**Additional note:**
+Before implementing, run `/profile-data domain=LB variables=LBTESTCD,LBSTRESC` to verify actual terminology in the data. The March 28 run confirmed "ALTERED"/"NOT ALTERED" pattern, but always verify before coding.
 
 ---
 
@@ -425,7 +477,7 @@ Each `r-clinical-programmer` agent assigned to a dataset must follow these 8 ste
 
 ### Step 1: Read the Plan and Set Up
 
-Read this plan document (`plans/plan_adam_automation_2026-03-27.md`), focusing on the section for the assigned dataset. Understand:
+Read this plan document (`plans/plan_adam_automation_2026-03-29.md`), focusing on the section for the assigned dataset. Understand:
 - Source domains and variables
 - All derivation rules
 - Dependency datasets (read SDTM from `projects/exelixis-sap/output-data/sdtm/`, ADaM from `projects/exelixis-sap/output-data/adam/`)
@@ -458,7 +510,7 @@ Every program must begin with a structured comment block:
 # Study: NPM-008 / Exelixis XB010-100
 # Dataset: <DATASET> — <Description>
 # Author: r-clinical-programmer agent
-# Date: 2026-03-27
+# Date: 2026-03-29
 #
 # Source Domains:
 #   - DM: USUBJID, STUDYID, RFSTDTC, ...
@@ -595,7 +647,7 @@ haven::write_xpt(<dataset>, "projects/exelixis-sap/output-data/<dataset>.xpt")
 ```
 
 Save the final R program to: `projects/exelixis-sap/programs/adam_<dataset>.R`
-Save the dev log to: `projects/exelixis-sap/logs/dev_log_<dataset>_2026-03-27.md`
+Save the dev log to: `projects/exelixis-sap/logs_2026-03-29/dev_log_<dataset>_2026-03-29.md`
 
 ### Global Conventions (All Datasets)
 
@@ -619,7 +671,7 @@ Each `clinical-code-reviewer` agent assigned to a dataset must follow this proce
 
 1. Read this plan document, focusing on the assigned dataset section
 2. Read the implemented program at `projects/exelixis-sap/programs/adam_<dataset>.R`
-3. Read the dev log at `projects/exelixis-sap/logs/dev_log_<dataset>_2026-03-27.md`
+3. Read the dev log at `projects/exelixis-sap/logs_2026-03-29/dev_log_<dataset>_2026-03-29.md`
 
 ### Step 2: CDISC RAG Verification
 
@@ -670,14 +722,14 @@ Check each item and record finding as BLOCKING / WARNING / NOTE:
 
 ### Step 5: Produce QC Report
 
-Save to `QA reviews/qa_adam_<dataset>_2026-03-27.md` with this structure:
+Save to `qa_2026-03-29/qa_adam_<dataset>_2026-03-29.md` with this structure:
 
 ```markdown
 # QC Report: ADAM <DATASET>
-**Date:** 2026-03-27
+**Date:** 2026-03-29
 **Reviewer:** clinical-code-reviewer agent
 **Program:** projects/exelixis-sap/programs/adam_<dataset>.R
-**Plan:** plans/plan_adam_automation_2026-03-27.md
+**Plan:** plans/plan_adam_automation_2026-03-29.md
 
 ## Verdict: PASS / FAIL
 
@@ -706,15 +758,65 @@ Save to `QA reviews/qa_adam_<dataset>_2026-03-27.md` with this structure:
 - Non-standard variables: (list with justification status)
 ```
 
+### After QC: Save Memories (if patterns identified)
+
+After producing the QC report, if you identified patterns worth preserving, save them as memories to prevent repeating mistakes in future waves.
+
+**Memory storage:** `.claude/agent-memory/`
+
+**When to save memories:**
+
+1. **Feedback memories** — save when:
+   - You flagged an error pattern that could recur
+   - You validated an approach that worked well
+   - The programmer made a mistake you want to prevent in future waves
+
+2. **Project memories** — save when:
+   - Implementation revealed complexity not obvious from plan
+   - You identified study-specific constraints
+   - Algorithm required refactoring due to missing requirements
+
+3. **Reference memories** — save when:
+   - You discovered study-specific terminology (e.g., "ALTERED vs POSITIVE")
+   - You identified domain quirks (e.g., "MH uses MHSTDTC not MHDTC")
+   - Controlled terminology differs from CDISC standards
+
+**Memory file format:**
+
+```markdown
+---
+name: memory_name
+description: One-line description for future searches
+type: feedback | project | reference
+---
+
+[Lead with the rule/fact/finding]
+
+**Why:** [The reason or incident that makes this important]
+
+**How to apply:** [When and how to use this knowledge]
+```
+
+**After creating memory file:**
+1. Update `.claude/agent-memory/MEMORY.md` index
+2. Add one-line entry: `- [filename.md](filename.md) — description`
+
+**Typical memories per wave:**
+- Wave 1: 1-2 memories (algorithm complexity, domain quirks)
+- Wave 2: 2-3 memories (terminology, patterns, conventions)
+- Wave 3+: 0-1 memories (most patterns already captured)
+
+Not every QC review requires new memories — only save patterns that are genuinely reusable.
+
 ---
 
 ## 7. Dev Log Template
 
-Each `r-clinical-programmer` agent must maintain a log at `projects/exelixis-sap/logs/dev_log_<dataset>_2026-03-27.md`:
+Each `r-clinical-programmer` agent must maintain a log at `projects/exelixis-sap/logs_2026-03-29/dev_log_<dataset>_2026-03-29.md`:
 
 ```markdown
 # Development Log: ADAM <DATASET>
-**Date:** 2026-03-27
+**Date:** 2026-03-29
 **Programmer:** r-clinical-programmer agent
 **Program:** projects/exelixis-sap/programs/adam_<dataset>.R
 
@@ -769,14 +871,14 @@ Each `r-clinical-programmer` agent must maintain a log at `projects/exelixis-sap
 
 ### Orchestration Log
 
-The orchestrator (main conversation) must maintain a running log at `projects/exelixis-sap/logs/orchestration_log_2026-03-27.md` that captures the full workflow. This log is the primary artifact for evaluating the end-to-end process after completion.
+The orchestrator (main conversation) must maintain a running log at `projects/exelixis-sap/logs_2026-03-29/orchestration_log_2026-03-29.md` that captures the full workflow. This log is the primary artifact for evaluating the end-to-end process after completion.
 
 **The orchestrator must create and append to this log at each milestone.** Write the initial log before Wave 1 and append after each wave completes.
 
 ```markdown
 # Orchestration Log: ADaM Automation — NPM-008
-**Date:** 2026-03-27
-**Plan:** plans/plan_adam_automation_2026-03-27.md
+**Date:** 2026-03-29
+**Plan:** plans/plan_adam_automation_2026-03-29.md
 
 ## Pre-Flight
 - **Status:** PASS / FAIL
@@ -791,7 +893,7 @@ The orchestrator (main conversation) must maintain a running log at `projects/ex
 - **Agent spawned:** <timestamp or sequence>
 - **Implementation status:** SUCCESS / FAIL (iteration count)
 - **QC verdict:** PASS / FAIL
-- **QC report:** QA reviews/qa_adam_adlot_2026-03-27.md
+- **QC report:** qa_2026-03-29/qa_adam_adlot_2026-03-29.md
 - **Fix cycles:** 0 / 1 / 2
 - **Final row count:** X rows, X subjects
 - **Program:** projects/exelixis-sap/programs/adam_adlot.R
@@ -828,10 +930,131 @@ The orchestrator (main conversation) must maintain a running log at `projects/ex
 
 ### Pre-Flight Validation (Run Before Wave 1)
 
-Before spawning any agents, the orchestrator must run a pre-flight check. This can be executed inline or as a small R script:
+Before spawning any agents, the orchestrator must run a comprehensive pre-flight check with three phases:
+
+#### Phase 0: Validate Plan Structure
+
+Run the plan validation command to check for anti-patterns, unresolved questions, and missing source data:
 
 ```r
-# --- Pre-flight validation ---------------------------------------------------
+# Load plan validation
+source("R/validate_plan.R")
+
+result <- validate_plan(
+  plan_path = "plans/plan_adam_automation_2026-03-29.md",
+  data_path = "output-data/sdtm"
+)
+
+cat("\n")
+cat(result$report)
+cat("\n")
+
+# Check verdict
+if (result$verdict == "BLOCKING") {
+  stop("Plan validation FAILED with BLOCKING issues. Resolve before proceeding.", call. = FALSE)
+} else if (result$verdict == "WARNING") {
+  message("Plan validation passed with WARNINGS. Review before proceeding.")
+} else {
+  message("Plan validation PASSED.")
+}
+```
+
+**Expected checks:**
+- ✓ All source domains referenced in plan exist in data directory
+- ✓ Open questions are resolved (no [ ] checkboxes, TODO, TBD markers)
+- ⚠ ADSL complexity alert documented (101 variables)
+- ⚠ Biomarker pattern alert documented (20 similar derivations)
+
+**Verdict interpretation:**
+- **PASS** → Proceed to Phase 1
+- **WARNING only** → Log warnings, proceed to Phase 1
+- **BLOCKING** → HALT, resolve issues, re-run validation
+
+---
+
+#### Phase 1: Profile Key Source Domains
+
+Generate frequency tables for domains with terminology dependencies:
+
+```r
+# Load profiling function
+source("R/profile_data.R")
+
+# Profile LB domain - critical for biomarker flags
+message("\nProfiling LB domain...")
+profile_data(
+  domain = "LB",
+  variables = c("LBTESTCD", "LBSTRESC", "LBBLFL"),
+  data_path = "output-data/sdtm",
+  output_path = "data-profiles"
+)
+
+# Profile MH domain - critical for comorbidity flags and staging
+message("\nProfiling MH domain...")
+profile_data(
+  domain = "MH",
+  variables = c("MHCAT", "MHTERM"),
+  data_path = "output-data/sdtm",
+  output_path = "data-profiles"
+)
+
+# Profile QS domain - critical for ECOG baseline
+message("\nProfiling QS domain...")
+profile_data(
+  domain = "QS",
+  variables = c("QSTESTCD", "QSORRES", "QSBLFL"),
+  data_path = "output-data/sdtm",
+  output_path = "data-profiles"
+)
+```
+
+**Profiles saved to:**
+- `data-profiles/LB.md` — Verify "ALTERED"/"NOT ALTERED" terminology
+- `data-profiles/MH.md` — Review comorbidity terms, staging values
+- `data-profiles/QS.md` — Verify ECOG values, numeric vs character
+
+**Review profiles before Wave 1** to catch terminology mismatches early.
+
+---
+
+#### Phase 2: Load Study Memories
+
+Check for study-specific memories from previous runs:
+
+```r
+# Check for study-specific memories
+memory_dir <- ".claude/agent-memory"
+if (dir.exists(memory_dir)) {
+  memory_files <- list.files(memory_dir, pattern = "\\.md$", full.names = TRUE)
+  memory_files <- memory_files[!basename(memory_files) %in% c("MEMORY.md", "README.md")]
+
+  if (length(memory_files) > 0) {
+    message("\nFound ", length(memory_files), " memory file(s):")
+    for (f in memory_files) {
+      message("  - ", basename(f))
+    }
+    message("\nMemories will be automatically loaded by agents.")
+  } else {
+    message("\nNo study-specific memories found (first run).")
+  }
+} else {
+  message("\nNo memory directory found (first run).")
+}
+```
+
+**Expected memories (if available):**
+- `xpt_flag_encoding.md` — ADaM Y/blank convention
+- `npm008_biomarker_terminology.md` — ALTERED vs POSITIVE
+- `lot_algorithm_complexity.md` — NPM LoT three-rule algorithm
+
+Agents will automatically load these via `.claude/agent-memory/MEMORY.md`.
+
+---
+
+#### Phase 3: Basic Infrastructure Validation
+
+```r
+# --- Pre-flight validation (infrastructure) -----------------------------------
 # 1. Required SDTM domains exist and are readable
 required_domains <- c("dm", "ae", "bs", "cm", "ds", "ec", "ex", "ho",
                       "ie", "lb", "mh", "pr", "qs", "rs", "sc", "su",
@@ -857,13 +1080,17 @@ for (pkg in c("haven", "dplyr", "tidyr", "stringr", "lubridate",
 }
 
 # 4. Output directories exist
-if (!dir.exists("logs")) dir.create("logs", recursive = TRUE)
-if (!dir.exists("QA reviews")) dir.create("QA reviews", recursive = TRUE)
+if (!dir.exists("logs_2026-03-29")) dir.create("logs_2026-03-29", recursive = TRUE)
+if (!dir.exists("qa_2026-03-29")) dir.create("qa_2026-03-29", recursive = TRUE)
+if (!dir.exists("data-profiles")) dir.create("data-profiles", recursive = TRUE)
 
-message("Pre-flight validation PASSED — ready for Wave 1")
+message("\n========================================")
+message("All pre-flight phases PASSED")
+message("========================================")
+message("Ready for Wave 1")
 ```
 
-**After pre-flight passes:** Create the orchestration log file at `projects/exelixis-sap/logs/orchestration_log_2026-03-27.md` with the pre-flight results. Append to this log after each wave completes (see Section 7, Orchestration Log template).
+**After pre-flight passes:** Create the orchestration log file at `projects/exelixis-sap/logs_2026-03-29/orchestration_log_2026-03-29.md` with the pre-flight results. Append to this log after each wave completes (see Section 7, Orchestration Log template).
 
 ### Retry Budget and Escalation
 
@@ -874,27 +1101,80 @@ message("Pre-flight validation PASSED — ready for Wave 1")
 
 This prevents infinite loops that burn tokens without converging.
 
-### Between-Wave Consistency Checks
+### Between-Wave Validation
 
-After each wave's QC passes and before proceeding to the next wave, run a quick cross-dataset consistency check:
+After each wave completes and all datasets pass QC, run comprehensive validation checks:
 
 ```r
-# --- Between-wave consistency (run after Wave N QC passes) -------------------
-# Load all datasets produced so far
-datasets <- list.files("projects/exelixis-sap/output-data/adam", pattern = "^ad.*\\.xpt$", full.names = TRUE)
-dm <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/dm.xpt")
-dm_subjects <- unique(dm$USUBJID)
+# --- Between-wave validation (run after Wave N QC passes) ---------------------
+# Load validation functions
+source("programs/between_wave_checks.R")
+source("R/validate_referential_integrity.R")
+source("R/validate_date_consistency.R")
+source("R/validate_derived_variables.R")
+source("R/validate_cross_domain.R")
 
-for (f in datasets) {
-  ds <- haven::read_xpt(f)
-  name <- tools::file_path_sans_ext(basename(f))
-  orphans <- setdiff(unique(ds$USUBJID), dm_subjects)
-  if (length(orphans) > 0) {
-    warning(name, ": ", length(orphans), " USUBJIDs not in DM", call. = FALSE)
-  }
-  message(name, ": ", nrow(ds), " rows, ", n_distinct(ds$USUBJID), " subjects — OK")
-}
+# Run validation for completed wave
+result <- run_between_wave_checks(
+  wave_number = <N>,
+  completed_datasets = c("<lowercase dataset names>"),
+  data_path = "output-data/adam",
+  auto_retry = TRUE
+)
+
+cat("\n")
+cat("========================================\n")
+cat("Wave ", <N>, " Validation: ", result$verdict, "\n")
+cat("========================================\n")
 ```
+
+**Validation coverage by wave:**
+
+| Wave | Datasets Complete | Validation Checks |
+|------|-------------------|-------------------|
+| 1 | ADLOT, ADBS | Row/subject counts (basic) |
+| 2 | ADSL | Referential integrity (ADSL vs DM) |
+| 3 | ADRS, ADAE | Referential integrity (vs ADSL), Date consistency (TRTEMFL vs TRTSDT), BOR cardinality |
+| 4 | ADTTE | Referential integrity (vs ADSL), Cross-domain consistency (DOR vs responders from ADRS) |
+
+**Example usage:**
+
+```r
+# After Wave 2 (ADSL) passes QC
+result <- run_between_wave_checks(
+  wave_number = 2,
+  completed_datasets = c("adsl"),
+  data_path = "output-data/adam",
+  auto_retry = TRUE
+)
+
+# Expected checks:
+# ✓ ADSL vs DM referential integrity
+# ✓ All 40 subjects from DM present in ADSL
+# ✓ No orphan records
+
+# After Wave 3 (ADRS + ADAE) passes QC
+result <- run_between_wave_checks(
+  wave_number = 3,
+  completed_datasets = c("adsl", "adrs", "adae"),
+  data_path = "output-data/adam",
+  auto_retry = TRUE
+)
+
+# Expected checks:
+# ✓ ADRS vs ADSL referential integrity
+# ✓ ADAE vs ADSL referential integrity
+# ✓ TRTEMFL logic: All AEs with TRTEMFL='Y' have AESTDT >= TRTSDT
+# ✓ BOR cardinality: Exactly 1 BOR record per subject
+```
+
+**Verdict interpretation:**
+- **PASS** → Proceed to next wave
+- **WARNING** → Review warnings, proceed if acceptable
+- **FAIL + auto_retry=TRUE** → Orchestrator recommends re-running wave
+- **FAIL + auto_retry=FALSE** → HALT, escalate to user
+
+**Append results to orchestration log.**
 
 ### Spawning Sequence
 
@@ -902,15 +1182,15 @@ for (f in datasets) {
 
 | Task | Agent | Input | Output |
 |------|-------|-------|--------|
-| 1a. Implement ADLOT | `r-clinical-programmer` | This plan (Section 4.1) | `projects/exelixis-sap/programs/adam_adlot.R`, `projects/exelixis-sap/output-data/adam/adlot.xpt`, `projects/exelixis-sap/logs/dev_log_adlot_2026-03-27.md` |
-| 1b. Implement ADBS | `r-clinical-programmer` | This plan (Section 4.2) | `projects/exelixis-sap/programs/adam_adbs.R`, `projects/exelixis-sap/output-data/adam/adbs.xpt`, `projects/exelixis-sap/logs/dev_log_adbs_2026-03-27.md` |
+| 1a. Implement ADLOT | `r-clinical-programmer` | This plan (Section 4.1) | `projects/exelixis-sap/programs/adam_adlot.R`, `projects/exelixis-sap/output-data/adam/adlot.xpt`, `projects/exelixis-sap/logs_2026-03-29/dev_log_adlot_2026-03-29.md` |
+| 1b. Implement ADBS | `r-clinical-programmer` | This plan (Section 4.2) | `projects/exelixis-sap/programs/adam_adbs.R`, `projects/exelixis-sap/output-data/adam/adbs.xpt`, `projects/exelixis-sap/logs_2026-03-29/dev_log_adbs_2026-03-29.md` |
 
 **Wave 1 QC — Spawn after 1a/1b complete:**
 
 | Task | Agent | Input | Output |
 |------|-------|-------|--------|
-| 1c. QC ADLOT | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adlot.R` + dev log | `QA reviews/qa_adam_adlot_2026-03-27.md` |
-| 1d. QC ADBS | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adbs.R` + dev log | `QA reviews/qa_adam_adbs_2026-03-27.md` |
+| 1c. QC ADLOT | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adlot.R` + dev log | `qa_2026-03-29/qa_adam_adlot_2026-03-29.md` |
+| 1d. QC ADBS | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adbs.R` + dev log | `qa_2026-03-29/qa_adam_adbs_2026-03-29.md` |
 
 **Gate:** Both 1c and 1d must PASS before proceeding. If FAIL, loop the programmer agent to fix BLOCKING findings, then re-QC. Max 2 fix-reQC cycles per dataset (see Retry Budget above).
 
@@ -918,13 +1198,13 @@ for (f in datasets) {
 
 | Task | Agent | Input | Output |
 |------|-------|-------|--------|
-| 2a. Implement ADSL | `r-clinical-programmer` | This plan (Section 4.3) + `projects/exelixis-sap/output-data/adam/adlot.xpt` | `projects/exelixis-sap/programs/adam_adsl.R`, `projects/exelixis-sap/output-data/adam/adsl.xpt`, `projects/exelixis-sap/logs/dev_log_adsl_2026-03-27.md` |
+| 2a. Implement ADSL | `r-clinical-programmer` | This plan (Section 4.3) + `projects/exelixis-sap/output-data/adam/adlot.xpt` | `projects/exelixis-sap/programs/adam_adsl.R`, `projects/exelixis-sap/output-data/adam/adsl.xpt`, `projects/exelixis-sap/logs_2026-03-29/dev_log_adsl_2026-03-29.md` |
 
 **Wave 2 QC:**
 
 | Task | Agent | Input | Output |
 |------|-------|-------|--------|
-| 2b. QC ADSL | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adsl.R` + dev log | `QA reviews/qa_adam_adsl_2026-03-27.md` |
+| 2b. QC ADSL | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adsl.R` + dev log | `qa_2026-03-29/qa_adam_adsl_2026-03-29.md` |
 
 **Gate:** 2b must PASS before proceeding. Run between-wave consistency check. Max 2 fix-reQC cycles (see Retry Budget above).
 
@@ -932,15 +1212,15 @@ for (f in datasets) {
 
 | Task | Agent | Input | Output |
 |------|-------|-------|--------|
-| 3a. Implement ADRS | `r-clinical-programmer` | This plan (Section 4.4) + `projects/exelixis-sap/output-data/adam/adsl.xpt` | `projects/exelixis-sap/programs/adam_adrs.R`, `projects/exelixis-sap/output-data/adam/adrs.xpt`, `projects/exelixis-sap/logs/dev_log_adrs_2026-03-27.md` |
-| 3b. Implement ADAE | `r-clinical-programmer` | This plan (Section 4.5) + `projects/exelixis-sap/output-data/adam/adsl.xpt` | `projects/exelixis-sap/programs/adam_adae.R`, `projects/exelixis-sap/output-data/adam/adae.xpt`, `projects/exelixis-sap/logs/dev_log_adae_2026-03-27.md` |
+| 3a. Implement ADRS | `r-clinical-programmer` | This plan (Section 4.4) + `projects/exelixis-sap/output-data/adam/adsl.xpt` | `projects/exelixis-sap/programs/adam_adrs.R`, `projects/exelixis-sap/output-data/adam/adrs.xpt`, `projects/exelixis-sap/logs_2026-03-29/dev_log_adrs_2026-03-29.md` |
+| 3b. Implement ADAE | `r-clinical-programmer` | This plan (Section 4.5) + `projects/exelixis-sap/output-data/adam/adsl.xpt` | `projects/exelixis-sap/programs/adam_adae.R`, `projects/exelixis-sap/output-data/adam/adae.xpt`, `projects/exelixis-sap/logs_2026-03-29/dev_log_adae_2026-03-29.md` |
 
 **Wave 3 QC:**
 
 | Task | Agent | Input | Output |
 |------|-------|-------|--------|
-| 3c. QC ADRS | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adrs.R` + dev log | `QA reviews/qa_adam_adrs_2026-03-27.md` |
-| 3d. QC ADAE | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adae.R` + dev log | `QA reviews/qa_adam_adae_2026-03-27.md` |
+| 3c. QC ADRS | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adrs.R` + dev log | `qa_2026-03-29/qa_adam_adrs_2026-03-29.md` |
+| 3d. QC ADAE | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adae.R` + dev log | `qa_2026-03-29/qa_adam_adae_2026-03-29.md` |
 
 **Gate:** 3c must PASS before Wave 4. 3d is not blocking for Wave 4. Run between-wave consistency check. Max 2 fix-reQC cycles (see Retry Budget above).
 
@@ -948,13 +1228,13 @@ for (f in datasets) {
 
 | Task | Agent | Input | Output |
 |------|-------|-------|--------|
-| 4a. Implement ADTTE | `r-clinical-programmer` | This plan (Section 4.6) + `projects/exelixis-sap/output-data/adam/adsl.xpt` + `projects/exelixis-sap/output-data/adam/adrs.xpt` | `projects/exelixis-sap/programs/adam_adtte.R`, `projects/exelixis-sap/output-data/adam/adtte.xpt`, `projects/exelixis-sap/logs/dev_log_adtte_2026-03-27.md` |
+| 4a. Implement ADTTE | `r-clinical-programmer` | This plan (Section 4.6) + `projects/exelixis-sap/output-data/adam/adsl.xpt` + `projects/exelixis-sap/output-data/adam/adrs.xpt` | `projects/exelixis-sap/programs/adam_adtte.R`, `projects/exelixis-sap/output-data/adam/adtte.xpt`, `projects/exelixis-sap/logs_2026-03-29/dev_log_adtte_2026-03-29.md` |
 
 **Wave 4 QC:**
 
 | Task | Agent | Input | Output |
 |------|-------|-------|--------|
-| 4b. QC ADTTE | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adtte.R` + dev log | `QA reviews/qa_adam_adtte_2026-03-27.md` |
+| 4b. QC ADTTE | `clinical-code-reviewer` | Plan + `projects/exelixis-sap/programs/adam_adtte.R` + dev log | `qa_2026-03-29/qa_adam_adtte_2026-03-29.md` |
 
 ### Agent Instructions Template
 
@@ -963,7 +1243,7 @@ When spawning each `r-clinical-programmer` agent, provide:
 ```
 Implement the <DATASET> ADaM dataset for the NPM-008 study.
 
-Read the plan at: plans/plan_adam_automation_2026-03-27.md — Section 4.X, Section 5 (workflow),
+Read the plan at: plans/plan_adam_automation_2026-03-29.md — Section 4.X, Section 5 (workflow),
 and the "Global Conventions" subsection at the end of Section 5.
 Follow the 8-step R-Clinical-Programmer Agent Workflow exactly.
 
@@ -971,7 +1251,7 @@ CRITICAL RULES:
 - Read ALL source SDTM data from .xpt files ONLY (never .rds files)
 - Use RELATIVE paths only (e.g., "projects/exelixis-sap/output-data/sdtm/dm.xpt")
 - Flag variables must use Y/blank (NA_character_), not Y/N
-- Create projects/exelixis-sap/logs/ directory if it does not exist before writing dev log
+- Create projects/exelixis-sap/logs_2026-03-29/ directory if it does not exist before writing dev log
 - Check projects/exelixis-sap/artifacts/Open-questions-cdisc.md for resolved decisions before implementing
 
 Source data is in: projects/exelixis-sap/output-data/sdtm/ (SDTM XPT files) and projects/exelixis-sap/output-data/adam/ (ADaM XPT files)
@@ -979,7 +1259,7 @@ Source data is in: projects/exelixis-sap/output-data/sdtm/ (SDTM XPT files) and 
 
 Save program to: projects/exelixis-sap/programs/adam_<dataset>.R
 Save dataset to: projects/exelixis-sap/output-data/adam/<dataset>.xpt
-Save dev log to: projects/exelixis-sap/logs/dev_log_<dataset>_2026-03-27.md
+Save dev log to: projects/exelixis-sap/logs_2026-03-29/dev_log_<dataset>_2026-03-29.md
 ```
 
 When spawning each `clinical-code-reviewer` agent, provide:
@@ -987,10 +1267,10 @@ When spawning each `clinical-code-reviewer` agent, provide:
 ```
 QC review the <DATASET> ADaM implementation for NPM-008.
 
-Read the plan at: plans/plan_adam_automation_2026-03-27.md — Section 4.X, Section 6,
+Read the plan at: plans/plan_adam_automation_2026-03-29.md — Section 4.X, Section 6,
 and the "Global Conventions" subsection at the end of Section 5.
 Read the program at: projects/exelixis-sap/programs/adam_<dataset>.R
-Read the dev log at: projects/exelixis-sap/logs/dev_log_<dataset>_2026-03-27.md
+Read the dev log at: projects/exelixis-sap/logs_2026-03-29/dev_log_<dataset>_2026-03-29.md
 Follow the QA Reviewer Agent Workflow in Section 6.
 
 ADDITIONAL CHECKS (verify these explicitly):
@@ -999,7 +1279,7 @@ ADDITIONAL CHECKS (verify these explicitly):
 - All flag variables use Y/blank convention (not Y/N)
 - ADRS AVAL coding follows study-specific convention (1=CR through 5=NE)
 
-Save QC report to: QA reviews/qa_adam_<dataset>_2026-03-27.md
+Save QC report to: qa_2026-03-29/qa_adam_<dataset>_2026-03-29.md
 ```
 
 ---
@@ -1023,21 +1303,21 @@ Save QC report to: QA reviews/qa_adam_<dataset>_2026-03-27.md
 | ADAE | `projects/exelixis-sap/output-data/adam/adae.xpt` | r-clinical-programmer |
 | ADTTE | `projects/exelixis-sap/output-data/adam/adtte.xpt` | r-clinical-programmer |
 | **Dev Logs** | | |
-| ADLOT log | `projects/exelixis-sap/logs/dev_log_adlot_2026-03-27.md` | r-clinical-programmer |
-| ADBS log | `projects/exelixis-sap/logs/dev_log_adbs_2026-03-27.md` | r-clinical-programmer |
-| ADSL log | `projects/exelixis-sap/logs/dev_log_adsl_2026-03-27.md` | r-clinical-programmer |
-| ADRS log | `projects/exelixis-sap/logs/dev_log_adrs_2026-03-27.md` | r-clinical-programmer |
-| ADAE log | `projects/exelixis-sap/logs/dev_log_adae_2026-03-27.md` | r-clinical-programmer |
-| ADTTE log | `projects/exelixis-sap/logs/dev_log_adtte_2026-03-27.md` | r-clinical-programmer |
+| ADLOT log | `projects/exelixis-sap/logs_2026-03-29/dev_log_adlot_2026-03-29.md` | r-clinical-programmer |
+| ADBS log | `projects/exelixis-sap/logs_2026-03-29/dev_log_adbs_2026-03-29.md` | r-clinical-programmer |
+| ADSL log | `projects/exelixis-sap/logs_2026-03-29/dev_log_adsl_2026-03-29.md` | r-clinical-programmer |
+| ADRS log | `projects/exelixis-sap/logs_2026-03-29/dev_log_adrs_2026-03-29.md` | r-clinical-programmer |
+| ADAE log | `projects/exelixis-sap/logs_2026-03-29/dev_log_adae_2026-03-29.md` | r-clinical-programmer |
+| ADTTE log | `projects/exelixis-sap/logs_2026-03-29/dev_log_adtte_2026-03-29.md` | r-clinical-programmer |
 | **QA Reports** | | |
-| ADLOT QA | `QA reviews/qa_adam_adlot_2026-03-27.md` | clinical-code-reviewer |
-| ADBS QA | `QA reviews/qa_adam_adbs_2026-03-27.md` | clinical-code-reviewer |
-| ADSL QA | `QA reviews/qa_adam_adsl_2026-03-27.md` | clinical-code-reviewer |
-| ADRS QA | `QA reviews/qa_adam_adrs_2026-03-27.md` | clinical-code-reviewer |
-| ADAE QA | `QA reviews/qa_adam_adae_2026-03-27.md` | clinical-code-reviewer |
-| ADTTE QA | `QA reviews/qa_adam_adtte_2026-03-27.md` | clinical-code-reviewer |
+| ADLOT QA | `qa_2026-03-29/qa_adam_adlot_2026-03-29.md` | clinical-code-reviewer |
+| ADBS QA | `qa_2026-03-29/qa_adam_adbs_2026-03-29.md` | clinical-code-reviewer |
+| ADSL QA | `qa_2026-03-29/qa_adam_adsl_2026-03-29.md` | clinical-code-reviewer |
+| ADRS QA | `qa_2026-03-29/qa_adam_adrs_2026-03-29.md` | clinical-code-reviewer |
+| ADAE QA | `qa_2026-03-29/qa_adam_adae_2026-03-29.md` | clinical-code-reviewer |
+| ADTTE QA | `qa_2026-03-29/qa_adam_adtte_2026-03-29.md` | clinical-code-reviewer |
 | **Orchestration Log** | | |
-| Workflow log | `projects/exelixis-sap/logs/orchestration_log_2026-03-27.md` | orchestrator (main conversation) |
+| Workflow log | `projects/exelixis-sap/logs_2026-03-29/orchestration_log_2026-03-29.md` | orchestrator (main conversation) |
 
 ---
 
@@ -1049,8 +1329,8 @@ Save QC report to: QA reviews/qa_adam_<dataset>_2026-03-27.md
 
 | # | Question | Dataset | Impact | Status |
 |---|----------|---------|--------|--------|
-| 1 | **NPM LoT Algorithm:** What are the exact rules for grouping drugs into lines of therapy? | ADLOT | Cannot implement ADLOT (and therefore ADSL) without this | **RESOLVED (2026-03-27 SAP review):** Window=45 days, gap=120 days, switching='no' for NSCLC. See Section 4.1 and open-questions-cdisc.md R5. |
-| 2 | **RECIST 1.1 Confirmation Requirement:** Does BOR require confirmed response (two consecutive CR or PR assessments) or is a single best assessment sufficient? | ADRS | Changes BOR derivation logic significantly | **RESOLVED (2026-03-27 SAP review):** Confirmed response required — ≥28-day interval between two CR/PR assessments per SAP. See Section 4.4 and open-questions-cdisc.md R3. |
+| 1 | **NPM LoT Algorithm:** What are the exact rules for grouping drugs into lines of therapy? | ADLOT | Cannot implement ADLOT (and therefore ADSL) without this | **RESOLVED (2026-03-29 SAP review):** Window=45 days, gap=120 days, switching='no' for NSCLC. See Section 4.1 and open-questions-cdisc.md R5. |
+| 2 | **RECIST 1.1 Confirmation Requirement:** Does BOR require confirmed response (two consecutive CR or PR assessments) or is a single best assessment sufficient? | ADRS | Changes BOR derivation logic significantly | **RESOLVED (2026-03-29 SAP review):** Confirmed response required — ≥28-day interval between two CR/PR assessments per SAP. See Section 4.4 and open-questions-cdisc.md R3. |
 | 3 | **Charlson Comorbidity Index Version:** Original 1987 Charlson weights or updated Quan 2011 weights? Are we using ICD-10 codes from MH.MHTERM or MedDRA preferred terms for CCI category mapping? | ADSL | Affects CCISCORE values | **RESOLVED:** Use Quan 2011 updated weights; derive from MH.MHTERM. Add `# REVISIT:` comment in code. See open-questions-cdisc.md R1/R2. |
 
 ### WARNING — Should Clarify Before or During Coding
@@ -1069,8 +1349,8 @@ Save QC report to: QA reviews/qa_adam_<dataset>_2026-03-27.md
 
 | # | Note | Dataset |
 |---|------|---------|
-| 11 | Admiral package may not have functions for all NPM-008 specific derivations (ADLOT, CCISCORE). Fallback to tidyverse is expected. Admiral IS installed and available. | ADLOT, ADSL |
+| 11 | Admiral package may not have functions for all NPM-008 specific derivations (ADLOT, CCISCORE). Fallback to tidyverse is expected. Admiral is installed and available. | ADLOT, ADSL |
 | 12 | Simulated data may have cleaner patterns than real-world data. Derivations should still handle edge cases (missing dates, subjects with no records) defensively. | All |
-| ~~13~~ | ~~`projects/exelixis-sap/logs/` directory does not exist~~ — **RESOLVED:** Pre-flight validation and Step 1 now create `projects/exelixis-sap/logs/` and `QA reviews/` directories automatically. | All |
+| ~~13~~ | ~~`projects/exelixis-sap/logs_2026-03-29/` directory does not exist~~ — **RESOLVED:** Pre-flight validation and Step 1 now create `projects/exelixis-sap/logs_2026-03-29/` and `qa_2026-03-29/` directories automatically. | All |
 | ~~14~~ | ~~ADRS AVAL numeric coding~~ — **RESOLVED:** Confirmed as intentional study-specific convention (1=CR through 5=NE). See Global Conventions in Section 5 and open-questions-cdisc.md R8. | ADRS |
 | 15 | **DM does not contain ARM, ARMCD, or ACTARM** — only ACTARMCD is available. ADSL programs must derive ARM/ACTARM from ACTARMCD if needed, or omit them. | ADSL |

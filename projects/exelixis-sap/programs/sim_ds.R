@@ -1,143 +1,184 @@
-# sim_ds.R
-# Simulate SDTM DS domain — Disposition Events
-# NPM-008 / XB010-101 simulated data
-# Domain order: 19 → set.seed(61)
-
-library(tidyverse)
-library(haven)
+# =============================================================================
+# sim_ds.R — Disposition
+# Study: NPM-008 / XB010-101 ECA
+# Seed: 42 + 19 = 61
+# Wave: 1
+# Dependencies: dm.rds
+# Expected rows: 40 (1 per subject)
+# Working directory: projects/exelixis-sap/
+# =============================================================================
 
 set.seed(61)
 
-# --- Load inputs --------------------------------------------------------------
+# --- Load dependencies -------------------------------------------------------
+dm_full <- readRDS("output-data/sdtm/dm.rds")
 
-dm_raw <- readRDS("cohort/output-data/dm.rds") %>%
-  select(USUBJID, death_ind, os_days, RFSTDTC, DTHDTC, DTHFL)
+# --- Load CT reference -------------------------------------------------------
+ct_ref <- readRDS("output-data/sdtm/ct_reference.rds")
 
-# --- Assign disposition terms per latent death indicator ---------------------
+# --- Source validation functions ---------------------------------------------
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
 
-# Deceased subjects: DSTERM = "Death", DSDECOD = "DEATH"
-# Alive subjects: randomly split 80/20 between "Last Known Alive" / "In-Hospice",
-#   both mapped to DSDECOD = "COMPLETED"
+# --- Generate DS data --------------------------------------------------------
 
-alive_terms <- c("Last Known Alive", "In-Hospice")
+# DS structure: One record per subject. Final disposition at study end.
+# DSDECOD="DEATH" iff DTHFL="Y" in DM.
+# Of alive subjects: 80% "Last Known Alive", 20% "In-Hospice".
+# DSDTC = DTHDTC if deceased; else RFSTDTC + os_days (last contact date).
 
-ds_raw <- dm_raw %>%
+ds <- dm_full %>%
   mutate(
-    DSTERM = if_else(
-      death_ind == 1,
-      "Death",
-      sample(alive_terms, size = n(), replace = TRUE, prob = c(0.80, 0.20))
+    # Determine disposition based on death flag
+    deceased = (!is.na(DTHFL) & DTHFL == "Y"),
+
+    # For alive subjects, assign 80% "Last Known Alive", 20% "In-Hospice"
+    alive_category = if_else(
+      deceased,
+      NA_character_,
+      sample(c("Last Known Alive", "In-Hospice"),
+             n(),
+             replace = TRUE,
+             prob = c(0.8, 0.2))
     ),
-    DSDECOD = if_else(death_ind == 1, "DEATH", "COMPLETED"),
-    DSCAT   = "DISPOSITION EVENT",
-    # Date of disposition event: death date for deceased; last contact for alive
-    DSDTC = if_else(
-      death_ind == 1,
-      DTHDTC,
-      as.character(as.Date(RFSTDTC) + os_days)
-    )
-  )
 
-# --- Build DS dataset ---------------------------------------------------------
+    # DSTERM and DSDECOD
+    DSTERM = case_when(
+      deceased ~ "Death",
+      alive_category == "In-Hospice" ~ "In-Hospice",
+      TRUE ~ "Last Known Alive"
+    ),
+    DSDECOD = case_when(
+      deceased ~ "DEATH",
+      alive_category == "In-Hospice" ~ "COMPLETED",
+      TRUE ~ "COMPLETED"
+    ),
 
-ds <- ds_raw %>%
-  transmute(
-    STUDYID = "NPM008",
-    DOMAIN  = "DS",
+    # DSDTC: DTHDTC if deceased, else RFSTDTC + os_days (last contact)
+    ds_raw_date = if_else(
+      deceased,
+      as.Date(DTHDTC),
+      as.Date(RFSTDTC) + os_days
+    ),
+    # Apply date shift
+    DSDTC = as.character(ds_raw_date + date_shift),
+
+    # Standard variables
+    DOMAIN = "DS",
+    DSSEQ = 1L,
+    DSCAT = "DISPOSITION EVENT"
+  ) %>%
+  select(
+    STUDYID,
+    DOMAIN,
     USUBJID,
-    DSSEQ   = 1L,
+    DSSEQ,
     DSTERM,
     DSDECOD,
     DSCAT,
     DSDTC
-  ) %>%
-  arrange(USUBJID)
+  )
 
-# --- Apply variable labels ----------------------------------------------------
+# --- Domain-specific validation closure --------------------------------------
+validate_ds <- function(domain_df, dm_ref) {
+  checks <- list()
 
-attr(ds$STUDYID,  "label") <- "Study Identifier"
-attr(ds$DOMAIN,   "label") <- "Domain Abbreviation"
-attr(ds$USUBJID,  "label") <- "Unique Subject Identifier"
-attr(ds$DSSEQ,    "label") <- "Sequence Number"
-attr(ds$DSTERM,   "label") <- "Reported Term for the Disposition Event"
-attr(ds$DSDECOD,  "label") <- "Standardized Disposition Term"
-attr(ds$DSCAT,    "label") <- "Category for Disposition Event"
-attr(ds$DSDTC,    "label") <- "Date/Time of Disposition Event"
+  # D1: DSDECOD="DEATH" iff DTHFL="Y" in DM
+  ds_dm <- domain_df %>%
+    left_join(dm_ref %>% select(USUBJID, DTHFL, DTHDTC, RFSTDTC), by = "USUBJID")
 
-# --- Write outputs ------------------------------------------------------------
+  death_mismatch <- ds_dm %>%
+    filter(
+      (DSDECOD == "DEATH" & (is.na(DTHFL) | DTHFL != "Y")) |
+      (DSDECOD != "DEATH" & !is.na(DTHFL) & DTHFL == "Y")
+    )
 
-saveRDS(ds, "cohort/output-data/sdtm/ds.rds")
-haven::write_xpt(ds, "cohort/output-data/sdtm/ds.xpt")
+  checks[[1]] <- list(
+    check_id = "D1",
+    description = "DSDECOD='DEATH' iff DTHFL='Y' in DM",
+    result = if (nrow(death_mismatch) == 0) "PASS" else "FAIL",
+    detail = if (nrow(death_mismatch) > 0)
+      sprintf("%d records with DSDECOD-DTHFL mismatch", nrow(death_mismatch))
+    else ""
+  )
 
-message("DS domain written: ", nrow(ds), " records for ", n_distinct(ds$USUBJID), " subjects")
-message("Files saved:")
-message("  cohort/output-data/sdtm/ds.xpt")
+  # D2: DSDTC >= RFSTDTC
+  invalid_dates <- ds_dm %>%
+    filter(!is.na(DSDTC), !is.na(RFSTDTC), DSDTC < RFSTDTC)
 
-# --- Validation ---------------------------------------------------------------
+  checks[[2]] <- list(
+    check_id = "D2",
+    description = "DSDTC >= RFSTDTC for all records",
+    result = if (nrow(invalid_dates) == 0) "PASS" else "FAIL",
+    detail = if (nrow(invalid_dates) > 0)
+      sprintf("%d records with DSDTC < RFSTDTC", nrow(invalid_dates))
+    else ""
+  )
 
-message("\n--- Validation ---")
+  # D3: DSSEQ = 1 for all records
+  checks[[3]] <- list(
+    check_id = "D3",
+    description = "DSSEQ = 1 for all records",
+    result = if (all(domain_df$DSSEQ == 1)) "PASS" else "FAIL",
+    detail = if (any(domain_df$DSSEQ != 1))
+      sprintf("%d records with DSSEQ != 1", sum(domain_df$DSSEQ != 1))
+    else ""
+  )
 
-dm_all <- readRDS("cohort/output-data/dm.rds")
+  # D4: DSCAT = "DISPOSITION EVENT" for all records
+  checks[[4]] <- list(
+    check_id = "D4",
+    description = "DSCAT = 'DISPOSITION EVENT' for all records",
+    result = if (all(domain_df$DSCAT == "DISPOSITION EVENT")) "PASS" else "FAIL",
+    detail = if (any(domain_df$DSCAT != "DISPOSITION EVENT"))
+      sprintf("%d records with invalid DSCAT", sum(domain_df$DSCAT != "DISPOSITION EVENT"))
+    else ""
+  )
 
-# Check 1: exactly 40 records
-check_nrow <- nrow(ds) == 40
-message("Check 1 — nrow == 40: ", check_nrow)
-stopifnot("FAIL: DS does not have exactly 40 records" = check_nrow)
+  # D5: Valid DSDECOD values
+  valid_dsdecod <- c("DEATH", "COMPLETED", "LOST TO FOLLOW-UP")
+  invalid_dsdecod <- domain_df %>%
+    filter(!DSDECOD %in% valid_dsdecod)
 
-# Check 2: DSSEQ == 1 for all rows
-check_dsseq <- all(ds$DSSEQ == 1L)
-message("Check 2 — DSSEQ == 1 for all rows: ", check_dsseq)
-stopifnot("FAIL: DSSEQ is not 1 for all rows" = check_dsseq)
+  checks[[5]] <- list(
+    check_id = "D5",
+    description = "DSDECOD values are valid CT terms",
+    result = if (nrow(invalid_dsdecod) == 0) "PASS" else "FAIL",
+    detail = if (nrow(invalid_dsdecod) > 0)
+      sprintf("%d records with invalid DSDECOD: %s",
+              nrow(invalid_dsdecod),
+              paste(unique(invalid_dsdecod$DSDECOD), collapse = ", "))
+    else ""
+  )
 
-# Check 3: all USUBJID present in DM
-check_subj <- all(ds$USUBJID %in% dm_all$USUBJID)
-message("Check 3 — All USUBJID in DM: ", check_subj)
-stopifnot("FAIL: DS contains USUBJID not in DM" = check_subj)
+  checks
+}
 
-# Check 4: every subject with DTHFL == "Y" in DM has DSDECOD == "DEATH"
-dthfl_subjs <- dm_all %>%
-  dplyr::filter(DTHFL == "Y") %>%
-  pull(USUBJID)
+# --- Run validation ----------------------------------------------------------
+validation_result <- validate_sdtm_domain(
+  domain_df = ds,
+  domain_code = "DS",
+  dm_ref = dm_full,
+  expected_rows = c(40, 40),
+  ct_reference = NULL,
+  domain_checks = validate_ds
+)
 
-death_decode_check <- ds %>%
-  dplyr::filter(USUBJID %in% dthfl_subjs) %>%
-  pull(DSDECOD) %>%
-  {all(. == "DEATH")}
+# --- Save output -------------------------------------------------------------
+saveRDS(ds, "output-data/sdtm/ds.rds")
+message("✓ DS saved: output-data/sdtm/ds.rds (", nrow(ds), " rows)")
 
-message("Check 4 — All DTHFL==Y subjects have DSDECOD==DEATH: ", death_decode_check)
-stopifnot("FAIL: subject with DTHFL==Y does not have DSDECOD==DEATH" = death_decode_check)
+# --- Log result --------------------------------------------------------------
+log_sdtm_result(
+  domain_code = "DS",
+  wave = 1,
+  row_count = nrow(ds),
+  col_count = ncol(ds),
+  validation_result = validation_result
+)
 
-# Check 5: DSDTC matches DTHDTC exactly for deceased subjects
-dsdtc_match <- ds %>%
-  left_join(dm_all %>% select(USUBJID, DTHDTC, death_ind), by = "USUBJID") %>%
-  dplyr::filter(death_ind == 1) %>%
-  mutate(match = DSDTC == DTHDTC) %>%
-  pull(match) %>%
-  all()
+message("✓ DS validation: ", validation_result$verdict)
+message("✓ DS log: logs/sdtm_domain_log_", format(Sys.Date(), "%Y-%m-%d"), ".md")
 
-message("Check 5 — DSDTC == DTHDTC for all deceased subjects: ", dsdtc_match)
-stopifnot("FAIL: DSDTC does not match DTHDTC for deceased subject" = dsdtc_match)
-
-# Check 6: DSTERM distribution — ~65–75% "Death"
-death_pct <- mean(ds$DSTERM == "Death") * 100
-message(sprintf(
-  "Check 6 — DSTERM distribution: Death=%.1f%%, Last Known Alive=%.1f%%, In-Hospice=%.1f%%",
-  death_pct,
-  mean(ds$DSTERM == "Last Known Alive") * 100,
-  mean(ds$DSTERM == "In-Hospice") * 100
-))
-check_death_pct <- death_pct >= 65 & death_pct <= 100  # 39/40 = 97.5% here
-message("Check 6 — Death% within expected range (>=65%): ", check_death_pct)
-stopifnot("FAIL: Death% outside expected range" = check_death_pct)
-
-message("\nAll validation checks PASSED.")
-
-# --- Summary preview ----------------------------------------------------------
-
-message("\nDS domain preview:")
-ds %>%
-  count(DSTERM, DSDECOD) %>%
-  print()
-
-message("\nSample records:")
-print(head(ds, 8))
+# --- Return data frame -------------------------------------------------------
+ds

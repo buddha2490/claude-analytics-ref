@@ -10,17 +10,21 @@
 #   cohort/output-data/sdtm/ex.rds
 # =============================================================================
 
-library(tidyverse)
-library(haven)
-library(xportr)
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(tibble)
+  library(haven)
+  library(xportr)
+})
 
 set.seed(42 + 9)  # 51 — EX is domain order 9
 
 # --- Paths -------------------------------------------------------------------
 
-dm_path  <- "cohort/output-data/dm.rds"
-xpt_path <- "cohort/output-data/sdtm/ex.xpt"
-rds_path <- "cohort/output-data/sdtm/ex.rds"
+dm_path  <- "/Users/briancarter/Rdata/claude-analytics-ref/projects/exelixis-sap/output-data/sdtm/dm.rds"
+xpt_path <- "/Users/briancarter/Rdata/claude-analytics-ref/projects/exelixis-sap/output-data/sdtm/ex.xpt"
+rds_path <- "/Users/briancarter/Rdata/claude-analytics-ref/projects/exelixis-sap/output-data/sdtm/ex.rds"
 
 # --- Load DM spine -----------------------------------------------------------
 

@@ -16,6 +16,9 @@ library(lubridate)
 library(haven)
 library(xportr)
 
+source("R/validate_sdtm_domain.R")
+source("R/log_sdtm_result.R")
+
 
 # --- Seed and constants -------------------------------------------------------
 
@@ -43,9 +46,10 @@ comorbidities <- tibble(
 )
 
 
-# --- Load DM spine ------------------------------------------------------------
+# --- Load DM spine and CT reference -------------------------------------------
 
-dm <- readRDS("cohort/output-data/dm.rds")
+dm <- readRDS("output-data/sdtm/dm.rds")
+ct_reference <- readRDS("output-data/sdtm/ct_reference.rds")
 
 
 # --- Per-subject fixed draws (vectorised before pmap loop) --------------------
@@ -194,37 +198,108 @@ mh <- mh_raw %>%
   dplyr::select(STUDYID, DOMAIN, USUBJID, MHSEQ, MHTERM, MHCAT, MHSTDTC, MHENDTC)
 
 
+# --- MH-specific validation checks --------------------------------------------
+
+mh_checks <- function(mh_df, dm_ref) {
+  checks <- list()
+
+  # MH1: MHSTDTC < RFSTDTC for all rows (MH events precede study entry)
+  date_check <- mh_df %>%
+    dplyr::left_join(dplyr::select(dm_ref, USUBJID, RFSTDTC), by = "USUBJID") %>%
+    dplyr::filter(!is.na(MHSTDTC)) %>%
+    dplyr::filter(as.Date(MHSTDTC) >= as.Date(RFSTDTC))
+
+  if (nrow(date_check) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "MH1",
+      description = "All MHSTDTC must be before RFSTDTC",
+      result = "FAIL",
+      detail = sprintf("%d row(s) have MHSTDTC >= RFSTDTC", nrow(date_check))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "MH1",
+      description = "All MHSTDTC must be before RFSTDTC",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # MH2: No NA in MHTERM
+  if (anyNA(mh_df$MHTERM)) {
+    na_count <- sum(is.na(mh_df$MHTERM))
+    checks[[length(checks) + 1]] <- list(
+      check_id = "MH2",
+      description = "MHTERM must not contain NA",
+      result = "FAIL",
+      detail = sprintf("%d NA value(s) in MHTERM", na_count)
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "MH2",
+      description = "MHTERM must not contain NA",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  # MH3: Every subject has at least one CANCER DIAGNOSIS record
+  cancer_dx_subjects <- mh_df %>%
+    dplyr::filter(MHCAT == "CANCER DIAGNOSIS") %>%
+    dplyr::pull(USUBJID) %>%
+    unique()
+
+  all_subjects <- unique(mh_df$USUBJID)
+  missing_subjects <- setdiff(all_subjects, cancer_dx_subjects)
+
+  if (length(missing_subjects) > 0) {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "MH3",
+      description = "Every subject has at least one CANCER DIAGNOSIS record",
+      result = "FAIL",
+      detail = sprintf("%d subject(s) missing CANCER DIAGNOSIS: %s",
+                      length(missing_subjects),
+                      paste(head(missing_subjects, 3), collapse = ", "))
+    )
+  } else {
+    checks[[length(checks) + 1]] <- list(
+      check_id = "MH3",
+      description = "Every subject has at least one CANCER DIAGNOSIS record",
+      result = "PASS",
+      detail = ""
+    )
+  }
+
+  checks
+}
+
 # --- Validate -----------------------------------------------------------------
 
-# All USUBJID in DM
-stopifnot("All USUBJID must be in DM" = all(mh$USUBJID %in% dm$USUBJID))
+validation_result <- validate_sdtm_domain(
+  domain_df = mh,
+  domain_code = "MH",
+  dm_ref = dm,
+  expected_rows = c(80, 200),
+  ct_reference = NULL,  # No CT validation for MH in this wave
+  domain_checks = mh_checks
+)
 
-# MHSEQ unique within each USUBJID
-seq_check <- mh %>%
-  dplyr::group_by(USUBJID) %>%
-  dplyr::summarise(n_seq = dplyr::n_distinct(MHSEQ), n_rows = n(), .groups = "drop") %>%
-  dplyr::filter(n_seq != n_rows)
+message(validation_result$summary)
 
-stopifnot("MHSEQ must be unique within each USUBJID" = nrow(seq_check) == 0)
+# --- Log result ---------------------------------------------------------------
 
-# MHSTDTC < RFSTDTC for all rows (MH events precede study entry)
-date_check <- mh %>%
-  dplyr::left_join(dplyr::select(dm, USUBJID, RFSTDTC), by = "USUBJID") %>%
-  dplyr::filter(!is.na(MHSTDTC)) %>%
-  dplyr::filter(as.Date(MHSTDTC) >= as.Date(RFSTDTC))
-
-stopifnot("All MHSTDTC must be before RFSTDTC" = nrow(date_check) == 0)
-
-# No NA in MHTERM
-stopifnot("MHTERM must not contain NA" = !anyNA(mh$MHTERM))
-
-message("Validation passed.")
-message("MH records: ", nrow(mh))
-message("Subjects with MH records: ", dplyr::n_distinct(mh$USUBJID))
-message(
-  "Records per subject — min: ", min(table(mh$USUBJID)),
-  ", max: ", max(table(mh$USUBJID)),
-  ", median: ", median(table(mh$USUBJID))
+log_sdtm_result(
+  domain_code = "MH",
+  wave = 1,
+  row_count = nrow(mh),
+  col_count = ncol(mh),
+  validation_result = validation_result,
+  notes = c(
+    sprintf("Records per subject — min: %d, max: %d, median: %.1f",
+            min(table(mh$USUBJID)),
+            max(table(mh$USUBJID)),
+            median(table(mh$USUBJID)))
+  )
 )
 
 
@@ -255,10 +330,10 @@ mh_xpt <- mh %>%
   xportr_label(mh_meta, domain = "MH") %>%
   xportr_type(mh_meta, domain = "MH")
 
-output_dir <- "cohort/output-data/sdtm"
+output_dir <- "output-data/sdtm"
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
 saveRDS(mh_xpt, file.path(output_dir, "mh.rds"))
 haven::write_xpt(mh_xpt, path = file.path(output_dir, "mh.xpt"))
 
-message("MH domain written to: ", file.path(output_dir, "mh.xpt"))
+message("✓ MH domain written to: ", file.path(output_dir, "mh.xpt"))
