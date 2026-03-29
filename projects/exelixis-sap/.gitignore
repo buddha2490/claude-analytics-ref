@@ -1,3 +1,5 @@
 
 # don't save data to the repo
 /output-data
+/.quarto/
+**/*.quarto_ipynb

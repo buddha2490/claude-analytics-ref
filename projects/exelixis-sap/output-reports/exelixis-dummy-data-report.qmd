@@ -1,0 +1,170 @@
+---
+title: "Exelixis Dummy Data QA Report"
+subtitle: "SDTM and ADaM Datasets"
+author: "Brian Carter"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    number-sections: true
+    code-fold: true
+    theme: cosmo
+    embed-resources: true
+---
+
+```{r setup}
+#| echo: false
+#| warning: false
+#| message: false
+
+library(haven)
+library(dplyr)
+library(knitr)
+library(stringr)
+library(here)
+
+# Source summary functions
+source(here("R/summarize_numeric.R"))
+source(here("R/summarize_character.R"))
+source(here("R/summarize_date.R"))
+source(here("R/summarize_variable.R"))
+source(here("R/extract_dataset_metadata.R"))
+
+# Load all SDTM datasets from data directory
+sdtm_dir <- here("projects/exelixis-sap/output-data/sdtm")
+sdtm_files <- list.files(sdtm_dir, pattern = "^[a-z]{2}\\.xpt$", full.names = TRUE)
+
+# Read all SDTM datasets
+sdtm_datasets <- list()
+for (file in sdtm_files) {
+  domain <- toupper(tools::file_path_sans_ext(basename(file)))
+  sdtm_datasets[[domain]] <- read_xpt(file)
+}
+
+# Load all ADaM datasets from output-data/adam directory
+adam_dir <- here("projects/exelixis-sap/output-data/adam")
+adam_files <- list.files(adam_dir, pattern = "^ad[a-z]+\\.rds$", full.names = TRUE)
+
+# Read all ADaM datasets
+adam_datasets <- list()
+for (file in adam_files) {
+  domain <- toupper(tools::file_path_sans_ext(basename(file)))
+  adam_datasets[[domain]] <- readRDS(file)
+}
+```
+
+# Overview {.unnumbered}
+
+This report provides quality assurance summaries for all SDTM and ADaM datasets in the Exelixis SAP project.
+
+::: {.callout-important}
+## Data Quality Notice
+
+**These datasets were AI-generated and should be considered a first pass at this process.** All data must be validated before use. Part of the validation process is reviewing this QA output to identify issues, inconsistencies, and missing values.
+:::
+
+**Report Generated:** `r format(Sys.Date(), "%Y-%m-%d")`
+
+**SDTM Domains:** `r length(sdtm_datasets)` (`r paste(names(sdtm_datasets), collapse = ", ")`)
+
+**ADaM Datasets:** `r length(adam_datasets)` (`r paste(names(adam_datasets), collapse = ", ")`)
+
+---
+
+# SDTM Domains
+
+```{r}
+#| echo: false
+#| results: asis
+
+# Process each SDTM domain
+for (domain in names(sdtm_datasets)) {
+  dataset <- sdtm_datasets[[domain]]
+
+  # Create domain section header
+  cat("\n\n## ", domain, " Dataset\n\n", sep = "")
+  cat("**Total Records:** ", nrow(dataset), "\n\n", sep = "")
+  cat("**Total Variables:** ", ncol(dataset), "\n\n", sep = "")
+
+  # Extract and display dataset metadata
+  metadata <- extract_dataset_metadata(dataset)
+  print(kable(metadata, align = c("l", "l", "r", "l", "l")))
+  cat("\n\n")
+
+  # Get all variable names
+  var_names <- names(dataset)
+
+  # Process each variable
+  for (var in var_names) {
+    # Create subsection for this variable (just variable name)
+    cat("\n\n### ", var, "\n\n", sep = "")
+
+    # Get variable data
+    var_data <- dataset[[var]]
+
+    # Generate summary based on variable type
+    summary_result <- summarize_variable(var_data, var)
+
+    # Display as table
+    print(kable(summary_result))
+    cat("\n\n")
+  }
+}
+```
+
+---
+
+# ADaM Datasets
+
+```{r}
+#| echo: false
+#| results: asis
+
+# Process each ADaM dataset
+for (domain in names(adam_datasets)) {
+  dataset <- adam_datasets[[domain]]
+
+  # Create dataset section header
+  cat("\n\n## ", domain, " Dataset\n\n", sep = "")
+  cat("**Total Records:** ", nrow(dataset), "\n\n", sep = "")
+  cat("**Total Variables:** ", ncol(dataset), "\n\n", sep = "")
+
+  # Extract and display dataset metadata
+  metadata <- extract_dataset_metadata(dataset)
+  print(kable(metadata, align = c("l", "l", "r", "l", "l")))
+  cat("\n\n")
+
+  # Get all variable names
+  var_names <- names(dataset)
+
+  # Process each variable
+  for (var in var_names) {
+    # Create subsection for this variable (just variable name)
+    cat("\n\n### ", var, "\n\n", sep = "")
+
+    # Get variable data
+    var_data <- dataset[[var]]
+
+    # Generate summary based on variable type
+    summary_result <- summarize_variable(var_data, var)
+
+    # Display as table
+    print(kable(summary_result))
+    cat("\n\n")
+  }
+}
+```
+
+---
+
+::: {.callout-note}
+## Report Information
+
+**Prepared by:** Brian Carter
+
+**Date:** `r format(Sys.Date(), "%Y-%m-%d")`
+
+**Purpose:** Quality assurance review of SDTM and ADaM datasets for the Exelixis SAP project. This report summarizes all variables across all domains and datasets to identify data quality issues, missing values, and distribution patterns.
+:::

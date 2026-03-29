@@ -34,7 +34,7 @@ options(download.file.extra = paste(
 ))
 
 
-conflicts_prefer(dplyr::filter, .quiet = TRUE)
+# conflicts_prefer(dplyr::filter, .quiet = TRUE)  # Commented out - function not available in current conflicted version
 
 .get_cluster_id <- function(cluster_name) {
   response <- httr2::request(
