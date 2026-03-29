@@ -11,6 +11,8 @@ library(stringr)
 library(purrr)
 library(lubridate)
 library(haven)
+library(xportr)
+library(tibble)
 
 set.seed(56)
 
@@ -119,7 +121,7 @@ message("\n--- Generating NON-TARGET lesions ---")
 
 # 70% of subjects get 1-2 non-target lesions
 non_target_lesions <- subjects %>%
-  filter(runif(n()) < 0.70) %>%  # 70% of subjects per plan
+  dplyr::filter(runif(n()) < 0.70) %>%  # 70% of subjects per plan
   rowwise() %>%
   mutate(
     n_non_target = sample(1:2, 1),
@@ -177,7 +179,7 @@ mets_records <- subjects %>%
     names_to = "mets_type",
     values_to = "has_mets"
   ) %>%
-  filter(has_mets) %>%
+  dplyr::filter(has_mets) %>%
   mutate(
     TULOC = str_to_title(str_remove(mets_type, "_mets")),
     TULNKID = NA_character_,
@@ -236,7 +238,7 @@ message("\n=== TU Validation ===")
 
 # Check 1: TARGET count matches DM.n_target_lesions
 target_counts <- tu %>%
-  filter(TUORRES == "TARGET") %>%
+  dplyr::filter(TUORRES == "TARGET") %>%
   count(USUBJID, name = "n_target_actual")
 
 dm_target_check <- dm %>%
@@ -261,7 +263,7 @@ message("✓ TARGET lesion counts match DM.n_target_lesions (",
 
 # Check 2: METS match DM mets flags
 mets_counts <- tu %>%
-  filter(TUTESTCD == "METS") %>%
+  dplyr::filter(TUTESTCD == "METS") %>%
   count(USUBJID, TULOC, name = "n_mets")
 
 dm_mets_check <- dm %>%
@@ -350,16 +352,50 @@ tu %>%
 
 message("\nTop tumor locations:")
 tu %>%
-  filter(TUTESTCD == "TUASSESS") %>%
+  dplyr::filter(TUTESTCD == "TUASSESS") %>%
   count(TULOC, sort = TRUE) %>%
   head(10) %>%
   print()
 
+# --- Apply variable labels and types -----------------------------------------
+tu_meta <- tibble(
+  variable = c(
+    "STUDYID", "DOMAIN", "USUBJID", "TUSEQ", "TULNKID",
+    "TUTESTCD", "TUTEST", "TUORRES", "TULOC", "TUDIR",
+    "TUMETHOD", "VISITNUM", "VISIT", "TUDTC"
+  ),
+  label = c(
+    "Study Identifier",
+    "Domain Abbreviation",
+    "Unique Subject Identifier",
+    "Sequence Number",
+    "Link ID",
+    "Tumor Identification Short Name",
+    "Tumor Identification",
+    "Result or Finding in Original Format",
+    "Location of the Tumor",
+    "Directionality of the Tumor",
+    "Method of Tumor Measurement",
+    "Visit Number",
+    "Visit Name",
+    "Date/Time of Tumor Identification"
+  ),
+  type = c(
+    "character", "character", "character", "numeric", "character",
+    "character", "character", "character", "character", "character",
+    "character", "numeric",   "character", "character"
+  )
+)
+
+tu_xpt <- tu %>%
+  xportr_label(tu_meta, domain = "TU") %>%
+  xportr_type(tu_meta, domain = "TU")
+
 # --- Save outputs ------------------------------------------------------------
-saveRDS(tu, "output-data/sdtm/tu.rds")
+saveRDS(tu_xpt, "output-data/sdtm/tu.rds")
 message("✓ Saved: output-data/sdtm/tu.rds")
 
-haven::write_xpt(tu, "output-data/sdtm/tu.xpt", version = 5)
+haven::write_xpt(tu_xpt, "output-data/sdtm/tu.xpt", version = 5)
 message("✓ Saved: output-data/sdtm/tu.xpt")
 
 message("\n=== TU domain generation complete ===")

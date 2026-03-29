@@ -17,9 +17,9 @@
 #   - Open-questions-cdisc.md R8: AVAL coding 1=CR, 2=PR, 3=SD, 4=PD, 5=NE
 #
 # Dependencies:
-#   - ADSL (projects/exelixis-sap/output-data/adam/adsl.xpt) — required for TRTSDT
-#   - RS (projects/exelixis-sap/output-data/sdtm/rs.xpt) — source of response assessments
-#   - DM (projects/exelixis-sap/output-data/sdtm/dm.xpt) — subject identifiers
+#   - ADSL (output-data/adam/adsl.xpt) — required for TRTSDT
+#   - RS (output-data/sdtm/rs.xpt) — source of response assessments
+#   - DM (output-data/sdtm/dm.xpt) — subject identifiers
 # =============================================================================
 
 library(haven)
@@ -31,9 +31,9 @@ library(xportr)
 
 # --- Read source data --------------------------------------------------------
 
-dm <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/dm.xpt")
-rs <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/rs.xpt")
-adsl <- haven::read_xpt("projects/exelixis-sap/output-data/adam/adsl.xpt")
+dm <- haven::read_xpt("output-data/sdtm/dm.xpt")
+rs <- haven::read_xpt("output-data/sdtm/rs.xpt")
+adsl <- haven::read_xpt("output-data/adam/adsl.xpt")
 
 # --- Data contract validation ------------------------------------------------
 
@@ -43,7 +43,7 @@ message("=== Step 4: Data Contract Validation ===")
 plan_vars_dm <- c("USUBJID", "STUDYID")
 plan_vars_rs <- c("USUBJID", "RSTESTCD", "RSSTRESC", "RSDTC",
                   "VISIT", "VISITNUM", "RSEVAL")
-plan_vars_adsl <- c("USUBJID", "TRTSDT")
+plan_vars_adsl <- c("USUBJID", "TRTSDT", "SAFFL")
 
 actual_vars_dm <- names(dm)
 actual_vars_rs <- names(rs)
@@ -105,8 +105,13 @@ message("\nFiltered to RSTESTCD=RECIST: ", nrow(rs_recist), " records")
 
 ovrlresp <- rs_recist %>%
   dplyr::left_join(
-    adsl %>% dplyr::select(USUBJID, TRTSDT),
+    adsl %>% dplyr::select(USUBJID, TRTSDT, SAFFL),
     by = "USUBJID"
+  ) %>%
+  dplyr::mutate(
+    # TRTP/TRTPN: planned treatment (single-arm study)
+    TRTP  = "Cabozantinib + Nivolumab",
+    TRTPN = 1L
   ) %>%
   dplyr::mutate(
     PARAMCD = "OVRLRESP",
@@ -138,13 +143,19 @@ ovrlresp <- rs_recist %>%
   dplyr::group_by(USUBJID) %>%
   dplyr::mutate(
     # Baseline flag: last assessment before or on TRTSDT
-    max_prebaseline = max(ADT[!is.na(ADT) & !is.na(TRTSDT) & ADT <= TRTSDT], na.rm = TRUE),
+    prebaseline_dates = list(ADT[!is.na(ADT) & !is.na(TRTSDT) & ADT <= TRTSDT]),
+    max_prebaseline = ifelse(
+      length(prebaseline_dates[[1]]) > 0,
+      max(prebaseline_dates[[1]], na.rm = TRUE),
+      NA_real_
+    ),
     ABLFL = dplyr::if_else(
       !is.na(ADT) & !is.na(max_prebaseline) & is.finite(max_prebaseline) & ADT == max_prebaseline,
       "Y",
       NA_character_
     )
   ) %>%
+  dplyr::select(-prebaseline_dates) %>%
   dplyr::ungroup() %>%
   dplyr::mutate(
     # ANL01FL: primary analysis flag (all post-baseline RECIST assessments)
@@ -156,7 +167,7 @@ ovrlresp <- rs_recist %>%
   ) %>%
   dplyr::select(
     STUDYID, USUBJID, PARAMCD, PARAM, AVALC, AVAL, ADT, ADY, VISIT, VISITNUM,
-    ABLFL, ANL01FL, TRTSDT
+    ABLFL, ANL01FL, TRTSDT, SAFFL, TRTP, TRTPN
   )
 
 message("\nOVRLRESP records created: ", nrow(ovrlresp))
@@ -180,6 +191,9 @@ bor <- ovrlresp %>%
   dplyr::summarise(
     STUDYID = dplyr::first(STUDYID),
     TRTSDT = dplyr::first(TRTSDT),
+    SAFFL = dplyr::first(SAFFL),
+    TRTP = dplyr::first(TRTP),
+    TRTPN = dplyr::first(TRTPN),
     # Check for confirmed CR: Any CR with CR/PR ≥28 days later
     has_confirmed_cr = any(
       AVALC == "CR" &
@@ -237,7 +251,7 @@ bor <- ovrlresp %>%
   ) %>%
   dplyr::select(
     STUDYID, USUBJID, PARAMCD, PARAM, AVALC, AVAL, ADT, ADY, VISIT, VISITNUM,
-    ABLFL, ANL01FL
+    ABLFL, ANL01FL, SAFFL, TRTP, TRTPN
   )
 
 message("BOR records created: ", nrow(bor))
@@ -302,7 +316,8 @@ message("✓ ANL01FL uses Y/blank convention")
 
 adrs_meta <- tibble::tibble(
   variable = c("STUDYID", "USUBJID", "PARAMCD", "PARAM", "AVALC", "AVAL",
-               "ADT", "ADY", "VISIT", "VISITNUM", "ABLFL", "ANL01FL"),
+               "ADT", "ADY", "VISIT", "VISITNUM", "ABLFL", "ANL01FL",
+               "SAFFL", "TRTP", "TRTPN"),
   label = c(
     "Study Identifier",
     "Unique Subject Identifier",
@@ -315,11 +330,15 @@ adrs_meta <- tibble::tibble(
     "Visit Name",
     "Visit Number",
     "Baseline Record Flag",
-    "Analysis Record Flag 01"
+    "Analysis Record Flag 01",
+    "Safety Population Flag",
+    "Planned Treatment",
+    "Planned Treatment (N)"
   ),
   type = c(
     "character", "character", "character", "character", "character", "numeric",
-    "numeric", "integer", "character", "numeric", "character", "character"
+    "numeric", "integer", "character", "numeric", "character", "character",
+    "character", "character", "numeric"
   )
 )
 
@@ -331,12 +350,12 @@ adrs <- adrs %>%
 
 haven::write_xpt(
   adrs,
-  "projects/exelixis-sap/output-data/adam/adrs.xpt",
+  "output-data/adam/adrs.xpt",
   version = 5
 )
-saveRDS(adrs, "projects/exelixis-sap/output-data/adam/adrs.rds")
+saveRDS(adrs, "output-data/adam/adrs.rds")
 
 message("\n=== Step 8: Save Complete ===")
-message("Dataset saved to: projects/exelixis-sap/output-data/adam/adrs.xpt")
-message("Dataset saved to: projects/exelixis-sap/output-data/adam/adrs.rds")
+message("Dataset saved to: output-data/adam/adrs.xpt")
+message("Dataset saved to: output-data/adam/adrs.rds")
 message("Program complete: ", Sys.time())

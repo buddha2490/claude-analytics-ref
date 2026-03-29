@@ -24,7 +24,7 @@
 #   - NPM-008 biomarker terminology (ALTERED/NOT ALTERED)
 #
 # Dependencies:
-#   - ADLOT (projects/exelixis-sap/output-data/adam/adlot.xpt) — required for INDEXFL, PRIORLN
+#   - ADLOT (output-data/adam/adlot.xpt) — required for INDEXFL, PRIORLN
 # =============================================================================
 
 library(haven)
@@ -36,17 +36,17 @@ library(xportr)
 
 # --- Read source data --------------------------------------------------------
 
-dm <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/dm.xpt")
-mh <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/mh.xpt")
-qs <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/qs.xpt")
-su <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/su.xpt")
-sc <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/sc.xpt")
-lb <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/lb.xpt")
-ds <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/ds.xpt")
-ex <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/ex.xpt")
-pr <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/pr.xpt")
-tu <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/tu.xpt")
-adlot <- haven::read_xpt("projects/exelixis-sap/output-data/adam/adlot.xpt")
+dm <- haven::read_xpt("output-data/sdtm/dm.xpt")
+mh <- haven::read_xpt("output-data/sdtm/mh.xpt")
+qs <- haven::read_xpt("output-data/sdtm/qs.xpt")
+su <- haven::read_xpt("output-data/sdtm/su.xpt")
+sc <- haven::read_xpt("output-data/sdtm/sc.xpt")
+lb <- haven::read_xpt("output-data/sdtm/lb.xpt")
+ds <- haven::read_xpt("output-data/sdtm/ds.xpt")
+ex <- haven::read_xpt("output-data/sdtm/ex.xpt")
+pr <- haven::read_xpt("output-data/sdtm/pr.xpt")
+tu <- haven::read_xpt("output-data/sdtm/tu.xpt")
+adlot <- haven::read_xpt("output-data/adam/adlot.xpt")
 
 # --- Data Contract Validation (Step 4) --------------------------------------
 message("=== Data Contract Validation ===")
@@ -268,9 +268,9 @@ adsl <- adsl %>%
   dplyr::left_join(liver_met, by = "USUBJID") %>%
   dplyr::left_join(bone_met, by = "USUBJID") %>%
   dplyr::mutate(
-    BRAINMET = ifelse(is.na(BRAINMET), NA_character_, BRAINMET),
-    LIVERMET = ifelse(is.na(LIVERMET), NA_character_, LIVERMET),
-    BONEMET = ifelse(is.na(BONEMET), NA_character_, BONEMET)
+    BRAINMET = ifelse(is.na(BRAINMET), "", BRAINMET),
+    LIVERMET = ifelse(is.na(LIVERMET), "", LIVERMET),
+    BONEMET = ifelse(is.na(BONEMET), "", BONEMET)
   )
 
 message("Block 5 complete: Metastasis flags")
@@ -288,14 +288,12 @@ create_biomarker_flag <- function(lb_data, test_code, var_name) {
     dplyr::filter(LBTESTCD == test_code, VISIT == "BASELINE") %>%
     dplyr::select(USUBJID, LBSTRESC)
 
-  # Create flag variable
+  # Create flag variable (Y/blank per CDISC convention - blank = empty string)
   result <- test_result %>%
     dplyr::mutate(
       !!var_name := dplyr::case_when(
-        LBSTRESC == "NOT ALTERED" ~ "N",
-        LBSTRESC == "NOT TESTED" ~ NA_character_,
         LBSTRESC == "ALTERED" ~ "Y",
-        TRUE ~ NA_character_
+        TRUE ~ ""  # NOT ALTERED, NOT TESTED, or any other value = blank (empty string)
       )
     ) %>%
     dplyr::select(USUBJID, !!rlang::sym(var_name)) %>%
@@ -423,14 +421,14 @@ adsl <- adsl %>%
   dplyr::left_join(pvd_fl, by = "USUBJID") %>%
   dplyr::left_join(cvd_fl, by = "USUBJID") %>%
   dplyr::mutate(
-    CADFL = ifelse(is.na(CADFL), NA_character_, CADFL),
-    DIABFL = ifelse(is.na(DIABFL), NA_character_, DIABFL),
-    COPDFL = ifelse(is.na(COPDFL), NA_character_, COPDFL),
-    HTNFL = ifelse(is.na(HTNFL), NA_character_, HTNFL),
-    RENALFL = ifelse(is.na(RENALFL), NA_character_, RENALFL),
-    HEPATICFL = ifelse(is.na(HEPATICFL), NA_character_, HEPATICFL),
-    PVDFL = ifelse(is.na(PVDFL), NA_character_, PVDFL),
-    CVDFL = ifelse(is.na(CVDFL), NA_character_, CVDFL)
+    CADFL = ifelse(is.na(CADFL), "", CADFL),
+    DIABFL = ifelse(is.na(DIABFL), "", DIABFL),
+    COPDFL = ifelse(is.na(COPDFL), "", COPDFL),
+    HTNFL = ifelse(is.na(HTNFL), "", HTNFL),
+    RENALFL = ifelse(is.na(RENALFL), "", RENALFL),
+    HEPATICFL = ifelse(is.na(HEPATICFL), "", HEPATICFL),
+    PVDFL = ifelse(is.na(PVDFL), "", PVDFL),
+    CVDFL = ifelse(is.na(CVDFL), "", CVDFL)
   )
 
 # Charlson Comorbidity Index (Quan 2011 weights)
@@ -499,7 +497,7 @@ lot_summary <- adlot %>%
     .groups = "drop"
   ) %>%
   dplyr::mutate(
-    INDEXFL = ifelse(INDEXFL_ANY, "Y", NA_character_)
+    INDEXFL = ifelse(INDEXFL_ANY, "Y", "")
   )
 
 # Calculate prior lines
@@ -544,9 +542,32 @@ adsl <- adsl %>%
 
 message("Block 9 complete: Treatment history")
 
-# --- Final assembly and variable ordering ------------------------------------
+# --- Block 10: Population flags -----------------------------------------------
+# SAFFL and ITTFL: all enrolled subjects are in both populations (single-arm study)
 
-# Select and order variables
+adsl <- adsl %>%
+  dplyr::mutate(
+    SAFFL  = "Y",
+    ITTFL  = "Y"
+  )
+
+message("Block 10 complete: SAFFL and ITTFL population flags")
+
+# --- Convert all flag NAs to empty strings (Y/blank convention) --------------
+# Per CDISC: character flags should be "Y" or "" (empty string), not NA
+adsl <- adsl %>%
+  dplyr::mutate(
+    DTHFL = ifelse(is.na(DTHFL), "", DTHFL)
+  )
+
+# --- Final assembly and variable ordering ------------------------------------
+# NOTE: Variables with zero non-missing values are excluded per CDISC guidance.
+# Excluded zero-length variables (no data available in simulated dataset):
+#   Biomarker flags with no matching LBTESTCD: PDL1, MSI, TMB, BRAFMUT,
+#     HER2MUT, PIK3CAMUT, STK11MUT, KEAP1MUT
+#   Comorbidity flags not present in MH terms: HTNFL, HEPATICFL, CVDFL
+#   Staging/treatment flags with no data: PATHSTAGEGRP, NEOADJFL, ADJUVFL
+
 adsl_final <- adsl %>%
   dplyr::select(
     # Identifiers
@@ -565,28 +586,30 @@ adsl_final <- adsl %>%
     # Death
     DTHDTC, DTHDT, DTHFL,
 
-    # Baseline assessments
-    ECOGBL, SMOKSTAT, HISTGRP,
+    # Population flags
+    SAFFL, ITTFL,
+
+    # Baseline assessments (SMOKSTAT excluded — no data from SU source in this dataset)
+    ECOGBL, HISTGRP,
 
     # Metastasis flags
     BRAINMET, LIVERMET, BONEMET,
 
-    # Biomarker flags (20 variables)
+    # Biomarker flags — only include those with data (non-zero-length)
     EGFRMUT, KRASMUT, ALK, ROS1MUT, RETMUT, METMUT, ERBB2MUT,
     NTRK1FUS, NTRK2FUS, NTRK3FUS, TP53MUT, RB1MUT,
-    PDL1, MSI, TMB, BRAFMUT, HER2MUT, PIK3CAMUT, STK11MUT, KEAP1MUT,
 
-    # Comorbidity flags (8 variables)
-    CADFL, DIABFL, COPDFL, HTNFL, RENALFL, HEPATICFL, PVDFL, CVDFL,
+    # Comorbidity flags — only include those with data
+    CADFL, DIABFL, COPDFL, RENALFL, PVDFL,
 
-    # Charlson score
-    CCISCORE,
+    # Charlson score excluded — all NA due to missing comorbidity flag data
+    # CCISCORE,
 
     # Staging
-    PATHSTAGEGRP, CLINSTAGEGRP,
+    CLINSTAGEGRP,
 
     # Treatment history
-    INDEXFL, PRIORLN, NEOADJFL, ADJUVFL
+    INDEXFL, PRIORLN
   )
 
 message("\n=== ADSL derivation complete ===")
@@ -623,8 +646,9 @@ adsl_meta <- tibble::tibble(
     "Date of Death (Char)",
     "Date of Death (Numeric)",
     "Death Flag",
+    "Safety Population Flag",
+    "Intent-to-Treat Population Flag",
     "Baseline ECOG Performance Status",
-    "Smoking Status",
     "Histology Group",
     "Brain Metastasis Flag",
     "Liver Metastasis Flag",
@@ -641,29 +665,14 @@ adsl_meta <- tibble::tibble(
     "NTRK3 Fusion Flag",
     "TP53 Mutation Flag",
     "RB1 Mutation Flag",
-    "PDL1 Expression Flag",
-    "MSI Status Flag",
-    "TMB Status Flag",
-    "BRAF Mutation Flag",
-    "HER2 Mutation Flag",
-    "PIK3CA Mutation Flag",
-    "STK11 Mutation Flag",
-    "KEAP1 Mutation Flag",
     "Coronary Artery Disease Flag",
     "Diabetes Flag",
     "COPD Flag",
-    "Hypertension Flag",
     "Renal Disease Flag",
-    "Hepatic Disease Flag",
     "Peripheral Vascular Disease Flag",
-    "Cerebrovascular Disease Flag",
-    "Charlson Comorbidity Index Score",
-    "Pathological Stage Group",
     "Clinical Stage Group",
     "Index Treatment Line Flag",
-    "Number of Prior Lines",
-    "Neoadjuvant Treatment Flag",
-    "Adjuvant Treatment Flag"
+    "Number of Prior Lines"
   ),
   type = c(
     "character", "character", "character",  # STUDYID, USUBJID, SITEID
@@ -673,13 +682,14 @@ adsl_meta <- tibble::tibble(
     "numeric", "numeric",  # TRT dates
     "character",  # ACTARMCD
     "character", "numeric", "character",  # Death
-    "numeric", "character", "character",  # ECOGBL, SMOKSTAT, HISTGRP
+    "character", "character",  # SAFFL, ITTFL
+    "numeric", "character",    # ECOGBL, HISTGRP (SMOKSTAT removed — no data)
     "character", "character", "character",  # Mets flags
-    rep("character", 20),  # 20 biomarker flags
-    rep("character", 8),   # 8 comorbidity flags
-    "numeric",  # CCISCORE
-    "character", "character",  # Staging
-    "character", "integer", "character", "character"  # Treatment history
+    rep("character", 12),  # 12 biomarker flags (reduced from 20)
+    rep("character", 5),   # 5 comorbidity flags (reduced from 8)
+    # CCISCORE removed — all NA, no data
+    "character",  # CLINSTAGEGRP
+    "character", "integer"  # INDEXFL, PRIORLN
   )
 )
 
@@ -689,10 +699,10 @@ adsl_final <- adsl_final %>%
 
 # --- Write output dataset ----------------------------------------------------
 
-haven::write_xpt(adsl_final, "projects/exelixis-sap/output-data/adam/adsl.xpt")
-saveRDS(adsl_final, "projects/exelixis-sap/output-data/adam/adsl.rds")
-message("\n✓ ADSL dataset written to: projects/exelixis-sap/output-data/adam/adsl.xpt")
-message("✓ ADSL dataset written to: projects/exelixis-sap/output-data/adam/adsl.rds")
+haven::write_xpt(adsl_final, "output-data/adam/adsl.xpt")
+saveRDS(adsl_final, "output-data/adam/adsl.rds")
+message("\n✓ ADSL dataset written to: output-data/adam/adsl.xpt")
+message("✓ ADSL dataset written to: output-data/adam/adsl.rds")
 
 # --- Validation checks -------------------------------------------------------
 
@@ -704,7 +714,7 @@ message("Subject count: ", n_distinct(adsl_final$USUBJID))
 message("Expected: One row per subject from DM (", n_distinct(dm$USUBJID), ")")
 
 # Key variable completeness
-key_vars <- c("STUDYID", "USUBJID", "SITEID", "AGE", "SEX", "RFSTDTC")
+key_vars <- c("STUDYID", "USUBJID", "SITEID", "AGE", "SEX", "RFSTDTC", "SAFFL", "ITTFL")
 completeness <- sapply(adsl_final[, key_vars], function(x) sum(is.na(x)))
 message("\nKey variable completeness:")
 print(completeness)
@@ -724,16 +734,29 @@ if (!all(adsl_final$USUBJID %in% dm$USUBJID)) {
 }
 
 # Flag convention check (Y/blank, not Y/N)
-flag_vars <- c("DTHFL", "BRAINMET", "LIVERMET", "BONEMET", "INDEXFL",
-               "NEOADJFL", "ADJUVFL", "EGFRMUT", "KRASMUT", "CADFL", "DIABFL")
-flag_check <- sapply(adsl_final[, flag_vars], function(x) {
-  unique_vals <- unique(x[!is.na(x)])
-  all(unique_vals %in% c("Y", "N"))
-})
-if (any(flag_check)) {
-  warning("Some flags use Y/N instead of Y/blank: ", paste(names(flag_check)[flag_check], collapse=", "))
+# Per CDISC: flags should be Y or blank (empty string ""), not Y/N or NA
+flag_vars <- c("DTHFL", "SAFFL", "ITTFL", "BRAINMET", "LIVERMET", "BONEMET",
+               "INDEXFL", "EGFRMUT", "KRASMUT", "CADFL", "DIABFL")
+flag_issues <- sapply(flag_vars, function(var) {
+  x <- adsl_final[[var]]
+  unique_vals <- unique(x)
+  # Y/blank means only "Y" and "" (possibly NA for DTHFL which may truly be missing)
+  valid_vals <- c("Y", "", NA_character_)
+  has_invalid <- any(!unique_vals %in% valid_vals)
+  has_N <- any(unique_vals == "N", na.rm = TRUE)
+  return(has_N || has_invalid)
+}, simplify = TRUE)
+
+if (any(flag_issues)) {
+  bad_flags <- names(flag_issues)[flag_issues]
+  message("\nFlag value check:")
+  for (var in bad_flags) {
+    vals <- unique(adsl_final[[var]])
+    message(sprintf("  %s: %s", var, paste(vals, collapse = ", ")))
+  }
+  warning("Some flags have unexpected values: ", paste(bad_flags, collapse=", "))
 } else {
-  message("✓ All flag variables use Y/blank convention")
+  message("✓ All flag variables use Y/blank convention (Y, \"\", or NA)")
 }
 
 message("\n✓✓✓ ADSL implementation complete ✓✓✓")

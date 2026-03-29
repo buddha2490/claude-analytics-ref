@@ -23,30 +23,47 @@ SITES      <- c("01", "02", "03", "04", "05")
 
 set.seed(42)
 
+### Set relative path
+if (basename(getwd()) !=  "exelixis-sap") {
+
+  setwd("projects/exelixis-sap/")
+
+}
+
+# Load ct-reference data
+# build_ct_reference.R lives in R/ (the reusable functions directory) and 
+#   is a legitimate utility — it builds a static CDISC controlled           
+#   terminology lookup table and saves it as ct_reference.rds. The SDTM     
+#   simulation programs likely source this file to validate that generated
+#   values fall within allowed CT codelists.  
+source("R/build_ct_reference.R")
+
+
+
 # --- Execution order ----------------------------------------------------------
 # Per plan Section 2: DM first (subject spine), then dependent domains in
 # dependency order. Each script overrides the base seed with its own offset.
 
 domain_scripts <- c(
-  "cohort/sim_dm.R",   # 01 — DM:  subject spine (all latent variables)
-  "cohort/sim_ie.R",   # 02 — IE:  inclusion/exclusion criteria
-  "cohort/sim_mh.R",   # 03 — MH:  medical history
-  "cohort/sim_sc.R",   # 04 — SC:  subject characteristics
-  "cohort/sim_su.R",   # 05 — SU:  substance use
-  "cohort/sim_vs.R",   # 06 — VS:  vital signs
-  "cohort/sim_lb.R",   # 07 — LB:  laboratory test results
-  "cohort/sim_bs.R",   # 08 — BS:  biospecimen findings
-  "cohort/sim_ex.R",   # 09 — EX:  exposure (treatment)
-  "cohort/sim_ec.R",   # 10 — EC:  exposure as collected
-  "cohort/sim_cm.R",   # 11 — CM:  concomitant medications
-  "cohort/sim_pr.R",   # 12 — PR:  procedures
-  "cohort/sim_qs.R",   # 13 — QS:  questionnaires / ECOG
-  "cohort/sim_tu.R",   # 14 — TU:  tumor identification
-  "cohort/sim_tr.R",   # 15 — TR:  tumor results (measurements)
-  "cohort/sim_rs.R",   # 16 — RS:  response
-  "cohort/sim_ae.R",   # 17 — AE:  adverse events
-  "cohort/sim_ho.R",   # 18 — HO:  healthcare encounters (hospitalizations)
-  "cohort/sim_ds.R"    # 19 — DS:  disposition
+  "programs/sdtm/sim_dm.R",   # 01 — DM:  subject spine (all latent variables)
+  "programs/sdtm/sim_ie.R",   # 02 — IE:  inclusion/exclusion criteria
+  "programs/sdtm/sim_mh.R",   # 03 — MH:  medical history
+  "programs/sdtm/sim_sc.R",   # 04 — SC:  subject characteristics
+  "programs/sdtm/sim_su.R",   # 05 — SU:  substance use
+  "programs/sdtm/sim_vs.R",   # 06 — VS:  vital signs
+  "programs/sdtm/sim_lb.R",   # 07 — LB:  laboratory test results
+  "programs/sdtm/sim_bs.R",   # 08 — BS:  biospecimen findings
+  "programs/sdtm/sim_ex.R",   # 09 — EX:  exposure (treatment)
+  "programs/sdtm/sim_ec.R",   # 10 — EC:  exposure as collected
+  "programs/sdtm/sim_cm.R",   # 11 — CM:  concomitant medications
+  "programs/sdtm/sim_pr.R",   # 12 — PR:  procedures
+  "programs/sdtm/sim_qs.R",   # 13 — QS:  questionnaires / ECOG
+  "programs/sdtm/sim_tu.R",   # 14 — TU:  tumor identification
+  "programs/sdtm/sim_tr.R",   # 15 — TR:  tumor results (measurements)
+  "programs/sdtm/sim_rs.R",   # 16 — RS:  response
+  "programs/sdtm/sim_ae.R",   # 17 — AE:  adverse events
+  "programs/sdtm/sim_ho.R",   # 18 — HO:  healthcare encounters (hospitalizations)
+  "programs/sdtm/sim_ds.R"    # 19 — DS:  disposition
 )
 
 # --- Source each domain program -----------------------------------------------
@@ -58,7 +75,7 @@ message(sprintf("N subjects: %d  |  Study end: %s", N_SUBJECTS, STUDY_END))
 message(strrep("=", 70))
 
 for (script in domain_scripts) {
-  domain_label <- toupper(sub("cohort/sim_([a-z]+)\\.R", "\\1", script))
+  domain_label <- toupper(sub(".*/sim_([a-z]+)\\.R", "\\1", script))
   message("\n", strrep("-", 60))
   message(sprintf("[%s] Sourcing: %s", domain_label, script))
   message(strrep("-", 60))
@@ -80,7 +97,7 @@ xpt_files <- tibble::tibble(
                      "EX","EC","CM","PR","QS","TU","TR","RS","AE","HO","DS"))
 ) %>%
   dplyr::mutate(
-    filepath = file.path("cohort/output-data", paste0(xpt, ".xpt"))
+    filepath = file.path("output-data/sdtm", paste0(xpt, ".xpt"))
   )
 
 summary_tbl <- xpt_files %>%

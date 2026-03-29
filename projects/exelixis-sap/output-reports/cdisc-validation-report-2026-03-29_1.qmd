@@ -1,0 +1,1185 @@
+---
+title: "CDISC Data Validation Report"
+subtitle: "Exelixis Dummy Data — SDTM and ADaM Datasets"
+author: "Automated Validation"
+date: "2026-03-29"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    number-sections: true
+    theme: cosmo
+    embed-resources: true
+---
+
+## Abstract
+
+This report presents the results of a CDISC data validation performed on the Exelixis NPM-008 dummy SDTM and ADaM datasets generated as of 2026-03-29. A total of 25 domains were validated (19 SDTM + 6 ADaM) spanning 4,125 total records across SDTM and 671 records across ADaM. The validation identified **19 BLOCKING findings**, **27 WARNING findings**, and **14 NOTE findings**. Headline issues include: missing variable labels across four domains (DS, LB, TU, and ADSL partially), missing required SDTM DM variables (ARMCD, ARM), a non-standard AEREL controlled terminology encoding, the QSSEQ variable stored as character rather than numeric, EXDOSE absent from EX replaced by free-text EXDOSTXT, empty LBBLFL (baseline flag) for all 1,400 LB records, missing SAFFL/ITTFL in ADSL, and missing population flags across all ADaM datasets. Overall, the datasets demonstrate a solid structural foundation with consistent STUDYID, no orphaned USUBJIDs, and correct ISO 8601 date formatting throughout; however, several BLOCKING issues must be remediated before these datasets would pass regulatory submission review.
+
+## Source Report
+
+This validation references the data profiling report at:
+
+`projects/exelixis-sap/output-reports/exelixis-dummy-data-report.html`, generated 2026-03-29.
+
+## Summary of Required Changes
+
+The following issues are BLOCKING and must be resolved before submission:
+
+### Missing Required Variables
+
+1. **DM** — Add ARMCD (Arm Code) and ARM (Description of Planned Arm). These are required SDTM DM variables per SDTM-IG. Currently only ACTARMCD is present.
+2. **MH** — Add MHDECOD (Dictionary-Derived Term). MHTERM is present but the dictionary-derived coded term is absent.
+3. **ADSL** — Add SAFFL (Safety Population Flag) and ITTFL (Intent-to-Treat Population Flag). These are required ADaM ADSL variables.
+4. **ADAE** — Add DOMAIN variable ("AE"). Required for all ADaM datasets that inherit from SDTM.
+5. **ADRS** — Add SAFFL, TRTP, TRTPN. Analysis population and treatment variables required per ADaM BDS.
+6. **ADTTE** — Add SAFFL, ITTFL, TRTP, TRTPN, EVNTDESC is present but STUDYID ordering convention differs from ADSL.
+
+### Missing Variable Labels
+
+7. **DS** — All 8 variables have empty labels. Add labels per CDISC SDTM-IG before writing XPT.
+8. **LB** — All 18 variables have empty labels. Add labels per CDISC SDTM-IG before writing XPT.
+9. **TU** — All 14 variables have empty labels. Add labels per CDISC SDTM-IG before writing XPT.
+
+### Controlled Terminology Violations
+
+10. **AE — AEREL** — Values "non-IO SACT" and "IO SACT" are non-standard. The CDISC CT for causality uses values such as "RELATED", "NOT RELATED", "POSSIBLE", "PROBABLE", "UNLIKELY", "UNASSESSABLE". Custom values require sponsor-defined codelist documentation.
+11. **AE — AEACN** — Value "" (empty string, 66.4% of records) is not an approved CT value. Per CDISC, AEACN should use values from the Action Taken with Study Treatment codelist (e.g., "DOSE NOT CHANGED", "DRUG INTERRUPTED", "DRUG WITHDRAWN", "NOT APPLICABLE"). Empty string without a "NOT APPLICABLE" value is non-conformant.
+12. **DS — DSDECOD** — Value "COMPLETED" is not in the primary SDTM CT for DSDECOD. The approved term is "COMPLETED STUDY" or study-specific extensible values. "DEATH" is valid. Confirm the correct codelist for this domain.
+
+### Variable Type Errors
+
+13. **QS — QSSEQ** — Stored as character (values "1", "2", ...). SDTM-IG requires all --SEQ variables to be Numeric. Convert to integer.
+14. **EX — EXDOSE absent** — EXDOSTXT (free text, e.g., "500", "75 + 10") is used instead of the numeric EXDOSE. Per SDTM-IG, the standardized numeric dose should be in EXDOSE (Num). EXDOSTXT is a supplemental text field, not a replacement. Numeric EXDOSE is required.
+
+### Missing Values in Required Variables
+
+15. **LB — LBBLFL** — All 1,400 records have empty LBBLFL. Baseline flag must be populated (Y) for baseline records; empty is acceptable for non-baseline. If no baseline records exist this is informational, but the zero-length field indicates the variable was never populated. Populate or remove if intentional.
+16. **ADSL — SMOKSTAT, PDL1, MSI, TMB, BRAFMUT, HER2MUT, PIK3CAMUT, STK11MUT, KEAP1MUT, PATHSTAGEGRP, HTNFL, HEPATICFL, CVDFL, NEOADJFL, ADJUVFL** — 15 variables have length=0 (empty across all 40 subjects). If these are planned but not yet populated, they should either be removed from the XPT or populated. Empty-length character variables in XPT may cause issues in downstream SAS processing.
+
+### Other Blocking Issues
+
+17. **DS — Missing labels** — All variables lack labels (covered in item 7 above).
+18. **LB — Missing labels** — All variables lack labels (covered in item 8 above).
+19. **TU — Missing labels** — All variables lack labels (covered in item 9 above).
+
+## Overall Statistics Table
+
+| Domain | Records | Variables | Blocking | Warnings | Notes | Status |
+|--------|---------|-----------|----------|----------|-------|--------|
+| AE | 131 | 17 | 2 | 1 | 1 | BLOCKING |
+| BS | 113 | 12 | 0 | 1 | 1 | WARNING |
+| CM | 179 | 11 | 0 | 1 | 1 | WARNING |
+| DS | 40 | 8 | 1 | 2 | 0 | BLOCKING |
+| EC | 169 | 11 | 0 | 1 | 1 | WARNING |
+| EX | 40 | 12 | 1 | 1 | 1 | BLOCKING |
+| HO | 10 | 8 | 0 | 1 | 1 | WARNING |
+| IE | 400 | 10 | 0 | 1 | 1 | WARNING |
+| LB | 1400 | 18 | 2 | 3 | 1 | BLOCKING |
+| MH | 156 | 8 | 1 | 1 | 1 | BLOCKING |
+| PR | 42 | 9 | 0 | 1 | 1 | WARNING |
+| QS | 680 | 10 | 1 | 1 | 1 | BLOCKING |
+| RS | 195 | 13 | 0 | 1 | 1 | WARNING |
+| SC | 120 | 8 | 0 | 1 | 1 | WARNING |
+| SU | 40 | 12 | 0 | 1 | 0 | WARNING |
+| TR | 566 | 14 | 0 | 1 | 0 | WARNING |
+| TU | 212 | 14 | 1 | 2 | 0 | BLOCKING |
+| VS | 720 | 13 | 0 | 1 | 0 | WARNING |
+| DM | 40 | 18 | 1 | 1 | 1 | BLOCKING |
+| ADSL | 40 | 66 | 3 | 2 | 0 | BLOCKING |
+| ADAE | 131 | 20 | 1 | 1 | 0 | BLOCKING |
+| ADBS | 113 | 9 | 0 | 1 | 0 | WARNING |
+| ADLOT | 111 | 10 | 0 | 0 | 1 | NOTE |
+| ADRS | 193 | 12 | 3 | 1 | 0 | BLOCKING |
+| ADTTE | 83 | 10 | 2 | 1 | 0 | BLOCKING |
+| **TOTAL** | **5,567** | — | **19** | **27** | **14** | **BLOCKING** |
+
+## Individual Dataset Reports
+
+### AE — Adverse Events
+
+**Records:** 131 | **Variables:** 17
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| AESEQ | ✓ PRESENT |
+| AETERM | ✓ PRESENT |
+| AEDECOD | ✓ PRESENT |
+| AESEV | ✓ PRESENT |
+| AESER | ✓ PRESENT |
+| AEREL | ✓ PRESENT |
+| AESTDTC | ✓ PRESENT |
+| AESOC | ✓ PRESENT |
+| AEACN | ✓ PRESENT |
+| AETOXGR | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| AESEQ | Sequence Number | Num | 0% | — | PASS |
+| AELNKID | Link ID | Char | 0% | All "1" — verify link structure | NOTE |
+| AETERM | Reported Term for Adverse Event | Char | 0% | — | PASS |
+| AEDECOD | Dictionary-Derived Term | Char | 0% | Values identical to AETERM; MedDRA coding appears missing | WARNING |
+| AECAT | Category for Adverse Event | Char | 0% | All "SACT" | PASS |
+| AESOC | Primary System Organ Class | Char | 0% | — | PASS |
+| AETOXGR | Standard Toxicity Grade | Char | 0% | — | PASS |
+| AESEV | Severity/Intensity | Char | 0% | MILD, MODERATE, SEVERE — valid (C66769) | PASS |
+| AEREL | Causality | Char | 0% | "non-IO SACT", "IO SACT" — non-standard CT values | BLOCKING |
+| AEACN | Action Taken with Study Treatment | Char | 0% | 66.4% empty strings — should be "NOT APPLICABLE" | BLOCKING |
+| AESHOSP | Resulted in Hospitalization | Char | 0% | Y/N — PASS | PASS |
+| AESER | Serious Event | Char | 0% | Y/N — PASS | PASS |
+| AESTDTC | Start Date/Time of Adverse Event | Char | 0% | ISO 8601 YYYY-MM-DD format valid | PASS |
+| AEENDTC | End Date/Time of Adverse Event | Char | 0% | ISO 8601 YYYY-MM-DD format valid | PASS |
+
+#### CT Violations
+
+| Variable | Observed Value | Count | Approved Values (CDISC CT) |
+|----------|---------------|-------|---------------------------|
+| AEREL | non-IO SACT | 117 (89.3%) | RELATED, NOT RELATED, POSSIBLE, PROBABLE, UNLIKELY, UNASSESSABLE, NOT APPLICABLE |
+| AEREL | IO SACT | 14 (10.7%) | (see above) |
+| AEACN | (empty string) | 87 (66.4%) | DOSE NOT CHANGED, DRUG INTERRUPTED, DRUG WITHDRAWN, NOT APPLICABLE, DOSE REDUCED |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: BLOCKING** (AEREL non-standard CT, AEACN empty values non-conformant)
+
+---
+
+### BS — Biospecimen
+
+**Records:** 113 | **Variables:** 12
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| BSSEQ | ✓ PRESENT |
+| BSTESTCD | ✓ PRESENT |
+| BSTEST | ✓ PRESENT |
+| BSSPEC | ✓ PRESENT |
+| BSDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| BSSEQ | Sequence Number | Num | 0% | — | PASS |
+| BSREFID | Specimen Reference/Identification | Char | 0% | All unique | PASS |
+| BSTESTCD | Biospecimen Test Short Name | Char | 0% | FFPEBL, FFPESL, HE — extensible CT, acceptable | NOTE |
+| BSTEST | Biospecimen Test Name | Char | 0% | — | PASS |
+| BSSPEC | Specimen Type Used for Measurement | Char | 0% | — | PASS |
+| BSANTREG | Anatomical Region | Char | 0% | ICD-O site codes (C34.3, C34.1) — non-standard CT format | WARNING |
+| BSMETHOD | Method of Test or Examination | Char | 0% | All "FFPE" | PASS |
+| BSHIST | Histology | Char | 0% | ICD-O morphology codes — acceptable | PASS |
+| BSDTC | Date/Time of Specimen Collection | Char | 0% | ISO 8601 YYYY-MM-DD valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (BSANTREG uses ICD-O site codes, not standard text anatomical regions)
+
+---
+
+### CM — Concomitant Medications
+
+**Records:** 179 | **Variables:** 11
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| CMSEQ | ✓ PRESENT |
+| CMTRT | ✓ PRESENT |
+| CMDECOD | ✓ PRESENT |
+| CMSTDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| CMSEQ | Sequence Number | Num | 0% | — | PASS |
+| CMTRT | Reported Name of Drug, Med, or Therapy | Char | 0% | Combination regimens in single field (e.g., "Carboplatin + Paclitaxel + Pembrolizumab") | WARNING |
+| CMDECOD | Standardized Medication Name | Char | 0% | Values identical to CMTRT — WHODrug coding appears missing | WARNING |
+| CMCAT | Category for Medication | Char | 0% | CONCOMITANT MEDICATIONS, PRIOR MEDICATIONS — acceptable | PASS |
+| CMSTDTC | Start Date/Time of Medication | Char | 0% | ISO 8601 valid | PASS |
+| CMENDTC | End Date/Time of Medication | Char | 20.1% | 20.1% empty — ongoing medications; acceptable per SDTM | NOTE |
+| CMDOSU | Dose Units | Char | 0% | mg, mg/m2, mcg — valid | PASS |
+| CMRSDISC | Reason Medication Discontinued | Char | 20.1% | Missing where CMENDTC missing (ongoing) — consistent | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (CMDECOD not dictionary-coded, combination regimens in CMTRT)
+
+---
+
+### DS — Disposition
+
+**Records:** 40 | **Variables:** 8
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| DSSEQ | ✓ PRESENT |
+| DSTERM | ✓ PRESENT |
+| DSDECOD | ✓ PRESENT |
+| DSCAT | ✓ PRESENT |
+| DSDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | NO LABEL | Char | 0% | Empty label | BLOCKING |
+| DOMAIN | NO LABEL | Char | 0% | Empty label | BLOCKING |
+| USUBJID | NO LABEL | Char | 0% | Empty label | BLOCKING |
+| DSSEQ | NO LABEL | Num | 0% | Empty label | BLOCKING |
+| DSTERM | NO LABEL | Char | 0% | Empty label; "In-Hospice" not in standard DSDECOD CT | BLOCKING |
+| DSDECOD | NO LABEL | Char | 0% | Empty label; "COMPLETED" should be "COMPLETED STUDY" per CT | BLOCKING |
+| DSCAT | NO LABEL | Char | 0% | Empty label | BLOCKING |
+| DSDTC | NO LABEL | Char | 0% | Empty label; ISO 8601 format valid | BLOCKING |
+
+#### CT Violations
+
+| Variable | Observed Value | Count | Approved Values (CDISC CT) |
+|----------|---------------|-------|---------------------------|
+| DSDECOD | COMPLETED | 12 (30%) | COMPLETED STUDY, DEATH, DISCONTINUED (extensible list) |
+| DSDECOD | DEATH | 28 (70%) | Valid |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: BLOCKING** (all variable labels missing, DSDECOD value "COMPLETED" non-standard)
+
+---
+
+### EC — Exposure as Collected
+
+**Records:** 169 | **Variables:** 11
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| ECSEQ | ✓ PRESENT |
+| ECTRT | ✓ PRESENT |
+| ECDOSE | ✓ PRESENT (Numeric) |
+| ECDOSU | ✓ PRESENT |
+| ECROUTE | ✓ PRESENT |
+| ECSTDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| ECSEQ | Sequence Number | Num | 0% | — | PASS |
+| ECLNKID | Link ID | Char | 0% | All "1" | PASS |
+| ECTRT | Name of Treatment | Char | 0% | — | PASS |
+| ECDOSE | Dose per Administration | Num | 0% | Mean 210.3, range 75–500 | PASS |
+| ECDOSU | Dose Units | Char | 0% | mg/m2, mg — valid | PASS |
+| ECROUTE | Route of Administration | Char | 0% | INTRAVENOUS (95.3%), ORAL (4.7%) — valid CT | PASS |
+| ECSTDTC | Start Date/Time of Treatment | Char | 0% | ISO 8601 valid | PASS |
+| ECENDTC | End Date/Time of Treatment | Char | 0% | ISO 8601 valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (NOTE: EC has only 40 unique subjects vs 169 records — high cycles per subject is expected for treatment domain but verify against EX alignment)
+
+---
+
+### EX — Exposure
+
+**Records:** 40 | **Variables:** 12
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| EXSEQ | ✓ PRESENT |
+| EXTRT | ✓ PRESENT |
+| EXDOSE | ✗ MISSING (replaced by EXDOSTXT) |
+| EXDOSU | ✓ PRESENT |
+| EXROUTE | ✓ PRESENT |
+| EXSTDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| EXSEQ | Sequence Number | Num | 0% | — | PASS |
+| EXLNKID | Link ID | Char | 0% | All "1" | PASS |
+| EXTRT | Name of Treatment | Char | 0% | — | PASS |
+| EXDOSTXT | Dose Description (Text) | Char | 0% | Free text: "500", "80", "75", "240", "75 + 10" — cannot replace EXDOSE | BLOCKING |
+| EXDOSU | Dose Units | Char | 0% | mg/m2, mg, mg/m2 + mg/kg — combination unit non-standard | WARNING |
+| EXROUTE | Route of Administration | Char | 0% | INTRAVENOUS, ORAL — valid CDISC CT (C66729) | PASS |
+| EXADJ | Reason for Dose Adjustment | Char | 0% | Values present — acceptable | PASS |
+| EXSTDTC | Start Date/Time of Treatment | Char | 0% | ISO 8601 valid | PASS |
+| EXENDTC | End Date/Time of Treatment | Char | 0% | ISO 8601 valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: BLOCKING** (EXDOSE absent — numeric dose required; only 40 records vs 169 EC records — EX appears to be summary/first-dose only)
+
+---
+
+### HO — Healthcare Encounters
+
+**Records:** 10 | **Variables:** 8
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| HOSEQ | ✓ PRESENT |
+| HOTERM | ✓ PRESENT |
+| HOSTDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| HOSEQ | Sequence Number | Num | 0% | — | PASS |
+| HOTERM | Hospitalization Term | Char | 0% | Free text — acceptable | PASS |
+| HOSTDTC | Start Date/Time | Char | 0% | ISO 8601 valid | PASS |
+| HOENDTC | End Date/Time | Char | 0% | ISO 8601 valid | PASS |
+| HOHNKID | Link ID | Char | 0% | All "1" — verify links to AE (AESHOSP=Y: 10 records match) | WARNING |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (10 HO records align with AESHOSP=Y count — verify HOHNKID linkage to AE)
+
+---
+
+### IE — Inclusion/Exclusion Criteria
+
+**Records:** 400 | **Variables:** 10
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| IESEQ | ✓ PRESENT |
+| IETESTCD | ✓ PRESENT |
+| IETEST | ✓ PRESENT |
+| IEORRES | ✓ PRESENT |
+| IESTRESC | ✓ PRESENT |
+| IEDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| IESEQ | Sequence Number | Num | 0% | — | PASS |
+| IETESTCD | IE Criterion Short Name | Char | 0% | 4-char codes (IE01–IE10) — acceptable | PASS |
+| IETEST | Inclusion/Exclusion Criterion | Char | 0% | Full text criterion descriptions | PASS |
+| IECAT | Category | Char | 0% | INCLUSION, EXCLUSION — valid | PASS |
+| IEORRES | Result | Char | 0% | YES, NO — valid | PASS |
+| IESTRESC | Char Result/Finding in Std Format | Char | 0% | YES, NO — consistent with IEORRES | PASS |
+| IEDTC | Date/Time of I/E Assessment | Char | 0% | ISO 8601 valid | PASS |
+
+**Note:** 400 records / 40 subjects = 10 criteria per subject (all subjects assessed against all criteria).
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (All criteria show YES — no subject failed any criterion, which is expected for enrolled subjects but confirm this is complete)
+
+---
+
+### LB — Laboratory Test Results
+
+**Records:** 1,400 | **Variables:** 18
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT (no label) |
+| DOMAIN | ✓ PRESENT (no label) |
+| USUBJID | ✓ PRESENT (no label) |
+| LBSEQ | ✓ PRESENT (no label) |
+| LBTESTCD | ✓ PRESENT (no label) |
+| LBTEST | ✓ PRESENT (no label) |
+| LBSTRESN | ✓ PRESENT (no label) |
+| LBSTRESU | ✓ PRESENT (no label) |
+| LBDTC | ✓ PRESENT (no label) |
+| LBBLFL | ✓ PRESENT but all empty |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| DOMAIN | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| USUBJID | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBSEQ | NO LABEL | Num | 0% | Missing label | BLOCKING |
+| LBTESTCD | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBTEST | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBCAT | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBORRES | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBORRESU | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBSTRESC | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBSTRESN | NO LABEL | Num | 0% | Missing label; type Num is correct | BLOCKING |
+| LBSTRESU | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBBLFL | NO LABEL | Char | 100% | ALL records empty — baseline flag never populated | BLOCKING |
+| LBNAM | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBSPEC | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBMETHOD | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| LBDTC | NO LABEL | Char | 0% | Missing label; ISO 8601 valid | BLOCKING |
+| VISIT | NO LABEL | Char | 0% | Missing label; non-standard variable name (should be LBVISIT or use VISIT from SDTM) | WARNING |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: BLOCKING** (all 18 labels missing; LBBLFL completely empty across 1,400 records)
+
+---
+
+### MH — Medical History
+
+**Records:** 156 | **Variables:** 8
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| MHSEQ | ✓ PRESENT |
+| MHTERM | ✓ PRESENT |
+| MHDECOD | ✗ MISSING |
+| MHSTDTC | ✓ PRESENT |
+| MHCAT | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| MHSEQ | Sequence Number | Num | 0% | — | PASS |
+| MHTERM | Reported Term for Medical History | Char | 0% | Free text — acceptable | PASS |
+| MHDECOD | Dictionary-Derived Term | ✗ MISSING | — | Required for MedDRA coding | BLOCKING |
+| MHCAT | Category | Char | 0% | Values present | PASS |
+| MHSTDTC | Start Date/Time | Char | 0% | ISO 8601 valid | PASS |
+| MHENDTC | End Date/Time | Char | 100% | All empty — ongoing or unknown end; length=0 field | WARNING |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: BLOCKING** (MHDECOD missing — required for MedDRA-coded medical history)
+
+---
+
+### PR — Procedures
+
+**Records:** 42 | **Variables:** 9
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| PRSEQ | ✓ PRESENT |
+| PRTRT | ✓ PRESENT |
+| PRSTDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| PRSEQ | Sequence Number | Num | 0% | — | PASS |
+| PRTRT | Name of Procedure | Char | 0% | Single value "Surgery" — limited | NOTE |
+| PRCAT | Category | Char | 0% | Procedure categories present | PASS |
+| PRLOC | Location | Char | 0% | ICD-O site codes (C34.x) — consistent with BS | WARNING |
+| PRSTDTC | Start Date/Time | Char | 0% | ISO 8601 valid | PASS |
+| PRENDTC | End Date/Time | Char | 0% | ISO 8601 valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (PRLOC uses ICD-O codes rather than anatomical text)
+
+---
+
+### QS — Questionnaires
+
+**Records:** 680 | **Variables:** 10
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| QSSEQ | ✓ PRESENT (wrong type) |
+| QSTESTCD | ✓ PRESENT |
+| QSTEST | ✓ PRESENT |
+| QSORRES | ✓ PRESENT |
+| QSDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| QSSEQ | Sequence Number | **Char** | 0% | Must be Num per SDTM-IG; currently character | BLOCKING |
+| QSTESTCD | Questionnaire Test Short Name | Char | 0% | Within 8-char limit | PASS |
+| QSTEST | Questionnaire Test Name | Char | 0% | Full text present | PASS |
+| QSCAT | Questionnaire Category | Char | 0% | Categories present | PASS |
+| QSORRES | Result | Char | 0% | Text responses | PASS |
+| VISIT | Visit Name | Char | 0% | Non-standard name (should be QSVISIT or VISIT per model) | NOTE |
+| QSDTC | Date/Time of QS Assessment | Char | 0% | ISO 8601 valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: BLOCKING** (QSSEQ is character type — must be numeric)
+
+---
+
+### RS — Disease Response
+
+**Records:** 195 | **Variables:** 13
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| RSSEQ | ✓ PRESENT |
+| RSTESTCD | ✓ PRESENT |
+| RSTEST | ✓ PRESENT |
+| RSORRES | ✓ PRESENT |
+| RSSTRESC | ✓ PRESENT |
+| RSDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| RSSEQ | Sequence Number | Num | 0% | — | PASS |
+| RSTESTCD | RS Test Code | Char | 0% | RECIST, CLINRES — within 8 chars | PASS |
+| RSTEST | RS Test Name | Char | 0% | Full text present | PASS |
+| RSCAT | Category | Char | 0% | RECIST 1.1 | PASS |
+| RSEVAL | Evaluator | Char | 0% | INVESTIGATOR — acceptable | PASS |
+| RSORRES | Result | Char | 0% | SD, PD, PR, NE — valid RECIST CT | PASS |
+| RSSTRESC | Standardized Result | Char | 0% | Consistent with RSORRES | PASS |
+| VISITNUM | Visit Number | Num | 0% | Numeric | PASS |
+| VISIT | Visit Name | Char | 0% | Non-standardized names present | WARNING |
+| RSDTC | Date/Time | Char | 0% | ISO 8601 valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (VISIT names non-standardized; no RSSTRESN for numeric encoding of response)
+
+---
+
+### SC — Subject Characteristics
+
+**Records:** 120 | **Variables:** 8
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| SCSEQ | ✓ PRESENT |
+| SCTESTCD | ✓ PRESENT |
+| SCTEST | ✓ PRESENT |
+| SCORRES | ✓ PRESENT |
+| SCDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| SCSEQ | Sequence Number | Num | 0% | — | PASS |
+| SCTESTCD | SC Test Code | Char | 0% | Within 8 chars | PASS |
+| SCTEST | SC Test Name | Char | 0% | Full text | PASS |
+| SCORRES | Result | Char | 0% | Various responses | PASS |
+| SCDTC | Date/Time | Char | 0% | ISO 8601 valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (120 records / 40 subjects = 3 characteristics per subject; verify test codes match CDISC SC CT; SCORRES variable stores mixed data types)
+
+---
+
+### SU — Substance Use
+
+**Records:** 40 | **Variables:** 12
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| SUSEQ | ✓ PRESENT |
+| SUTRT | ✓ PRESENT |
+| SUSTDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| SUSEQ | Sequence Number | Num | 0% | — | PASS |
+| SUTRT | Substance Name | Char | 0% | — | PASS |
+| SUCAT | Category | Char | 0% | — | PASS |
+| SUSCAT | Subcategory | Char | 0% | — | PASS |
+| SUPRESP | Pre-specified | Char | 0% | — | PASS |
+| SUDOSE | Dose | Num | 0% | Numeric | PASS |
+| SUDOSU | Dose Units | Char | 0% | — | PASS |
+| SUDUR | Duration | Char | 0% | Duration values present | WARNING |
+| SUSTDTC | Start Date/Time | Char | 0% | ISO 8601 valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (SUDUR format should follow ISO 8601 duration format P[n]Y[n]M[n]D; verify encoding)
+
+---
+
+### TR — Tumor Results
+
+**Records:** 566 | **Variables:** 14
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| TRSEQ | ✓ PRESENT |
+| TRTESTCD | ✓ PRESENT |
+| TRTEST | ✓ PRESENT |
+| TRORRES | ✓ PRESENT |
+| TRSTRESN | ✓ PRESENT |
+| TRDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| TRSEQ | Sequence Number | Num | 0% | — | PASS |
+| TRLNKID | Link ID | Char | 0% | 3-char codes — links to TU | PASS |
+| TRTESTCD | TR Test Code | Char | 0% | "LDIAM" — Longest Diameter; valid | PASS |
+| TRTEST | TR Test Name | Char | 0% | Consistent with TRTESTCD | PASS |
+| TRORRES | Result | Char | 0% | Numeric text values | PASS |
+| TRSTRESC | Standardized Result | Char | 0% | Consistent with TRORRES | PASS |
+| TRSTRESN | Numeric Result | Num | 0% | Numeric; PASS | PASS |
+| TRSTRESU | Units | Char | 0% | "mm" — valid | PASS |
+| VISITNUM | Visit Number | Num | 0% | Numeric | PASS |
+| VISIT | Visit Name | Char | 0% | Standardized visit names | WARNING |
+| TRDTC | Date/Time | Char | 0% | ISO 8601 valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (VISIT names should be verified against protocol schedule; TRLNKID links should be validated against TU TULNKID)
+
+---
+
+### TU — Tumor Identification
+
+**Records:** 212 | **Variables:** 14
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT (no label) |
+| DOMAIN | ✓ PRESENT (no label) |
+| USUBJID | ✓ PRESENT (no label) |
+| TUSEQ | ✓ PRESENT (no label) |
+| TUTESTCD | ✓ PRESENT (no label) |
+| TUTEST | ✓ PRESENT (no label) |
+| TUORRES | ✓ PRESENT (no label) |
+| TULOC | ✓ PRESENT (no label) |
+| TUDTC | ✓ PRESENT (no label) |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| DOMAIN | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| USUBJID | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| TUSEQ | NO LABEL | Num | 0% | Missing label | BLOCKING |
+| TULNKID | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| TUTESTCD | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| TUTEST | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| TUORRES | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| TULOC | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| TUDIR | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| TUMETHOD | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| VISITNUM | NO LABEL | Num | 0% | Missing label | BLOCKING |
+| VISIT | NO LABEL | Char | 0% | Missing label | BLOCKING |
+| TUDTC | NO LABEL | Char | 0% | Missing label; ISO 8601 valid | BLOCKING |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: BLOCKING** (all 14 variable labels missing)
+
+---
+
+### VS — Vital Signs
+
+**Records:** 720 | **Variables:** 13
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| VSSEQ | ✓ PRESENT |
+| VSTESTCD | ✓ PRESENT |
+| VSTEST | ✓ PRESENT |
+| VSSTRESN | ✓ PRESENT |
+| VSSTRESU | ✓ PRESENT |
+| VSDTC | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| VSSEQ | Sequence Number | Num | 0% | — | PASS |
+| VSTESTCD | VS Test Code | Char | 0% | HR, SYSBP, DIABP, SPO2, RESP, TEMP, HT, WT, BMI — all in C66741 | PASS |
+| VSTEST | VS Test Name | Char | 0% | Consistent with VSTESTCD | PASS |
+| VSORRES | Original Result | Char | 0% | — | PASS |
+| VSORRESU | Original Units | Char | 0% | — | PASS |
+| VSSTRESC | Standardized Result | Char | 0% | — | PASS |
+| VSSTRESN | Numeric Result | Num | 0% | Numeric — PASS | PASS |
+| VSSTRESU | Standardized Units | Char | 0% | beats/min, mmHg, %, breaths/min, degrees F, cm, kg, kg/m2 — NOTE: "degrees F" should be "degrees C" per CDISC preference; Fahrenheit is acceptable if consistently applied | WARNING |
+| VISIT | Visit Name | Char | 0% | Visit names present | PASS |
+| VSDTC | Date/Time | Char | 0% | ISO 8601 valid | PASS |
+
+#### Cross-Domain Consistency
+
+Orphaned USUBJIDs vs DM: **0** — PASS
+
+**Verdict: WARNING** (temperature in Fahrenheit — verify against study protocol; CDISC prefers Celsius for standardized results)
+
+---
+
+### DM — Demographics
+
+**Records:** 40 | **Variables:** 18
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| DOMAIN | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| SUBJID | ✓ PRESENT |
+| RFSTDTC | ✓ PRESENT |
+| RFENDTC | ✓ PRESENT |
+| SITEID | ✓ PRESENT |
+| AGE | ✓ PRESENT |
+| AGEU | ✓ PRESENT |
+| SEX | ✓ PRESENT |
+| RACE | ✓ PRESENT |
+| ETHNIC | ✓ PRESENT |
+| ACTARMCD | ✓ PRESENT |
+| ARMCD | ✗ MISSING |
+| ARM | ✗ MISSING |
+| COUNTRY | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| DOMAIN | Domain Abbreviation | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| SUBJID | Subject Identifier for Study | Char | 0% | — | PASS |
+| RFSTDTC | Subject Reference Start Date/Time | Char | 0% | ISO 8601 valid | PASS |
+| RFENDTC | Subject Reference End Date/Time | Char | 0% | ISO 8601 valid | PASS |
+| RFICDTC | Date/Time of Informed Consent | Char | 0% | ISO 8601 valid | PASS |
+| DTHDTC | Date/Time of Death | Char | 0% | ISO 8601 valid; present only for deceased | PASS |
+| DTHFL | Subject Death Flag | Char | 0% | Y/empty — valid | PASS |
+| SITEID | Study Site Identifier | Char | 0% | — | PASS |
+| BRTHDTC | Date/Time of Birth | Char | 0% | ISO 8601 valid | PASS |
+| AGE | Age | Num | 0% | Numeric — PASS | PASS |
+| AGEU | Age Units | Char | 0% | YEARS — acceptable | PASS |
+| SEX | Sex | Char | 0% | F, M — valid (C66731) | PASS |
+| RACE | Race | Char | 0% | WHITE, ASIAN, AMERICAN INDIAN OR ALASKA NATIVE, BLACK OR AFRICAN AMERICAN, MULTIPLE, UNKNOWN — PASS (C74457, "MULTIPLE" is acceptable as custom) | NOTE |
+| ETHNIC | Ethnicity | Char | 0% | NOT HISPANIC OR LATINO, HISPANIC OR LATINO, UNKNOWN — valid (C66790) | PASS |
+| ACTARMCD | Actual Arm Code | Char | 0% | Numeric codes 1–9 — non-standard; ARMCD/ARM required | WARNING |
+| COUNTRY | Country | Char | 0% | 3-letter ISO codes — valid | PASS |
+| ARMCD | Arm Code | ✗ MISSING | — | Required SDTM DM variable | BLOCKING |
+| ARM | Description of Planned Arm | ✗ MISSING | — | Required SDTM DM variable | BLOCKING |
+
+#### CT Violations
+
+| Variable | Observed Value | Count | Approved Values (CDISC CT) |
+|----------|---------------|-------|---------------------------|
+| RACE | MULTIPLE | 1 (2.5%) | Not in C74457 (no "MULTIPLE" value); acceptable as extensible per FDA guidance |
+| ACTARMCD | 1, 2, 3... 9 | Numeric | ARMCD should be a mnemonic code per SDTM-IG |
+
+#### Cross-Domain Consistency
+
+DM is the reference domain. All other SDTM domains: **0 orphaned USUBJIDs** — PASS
+
+**Verdict: BLOCKING** (ARMCD and ARM required variables absent)
+
+---
+
+### ADSL — Subject-Level Analysis Dataset
+
+**Records:** 40 | **Variables:** 66
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| TRTSDT | ✓ PRESENT |
+| RFSTDTC | ✓ PRESENT |
+| ACTARMCD | ✓ PRESENT |
+| SAFFL | ✗ MISSING |
+| ITTFL | ✗ MISSING |
+| TRTP | ✗ MISSING |
+| TRTPN | ✗ MISSING |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | ✓ Labeled | Char | 0% | — | PASS |
+| USUBJID | ✓ Labeled | Char | 0% | — | PASS |
+| SAFFL | ✗ MISSING | — | — | Safety Population Flag required | BLOCKING |
+| ITTFL | ✗ MISSING | — | — | Intent-to-Treat Flag required | BLOCKING |
+| TRTP | ✗ MISSING | — | — | Planned Treatment required for BDS | BLOCKING |
+| TRTPN | ✗ MISSING | — | — | Numeric Planned Treatment required | BLOCKING |
+| DTHFL | Labeled | Char | 0% | Y/empty — valid | PASS |
+| ECOGBL | Labeled | Num | 0% | Baseline ECOG | PASS |
+| INDEXFL | Labeled | Char | 0% | Y — all subjects are index | PASS |
+| SMOKSTAT | Labeled | Char | 100% | Zero-length — never populated | BLOCKING |
+| PDL1 | Labeled | Char | 100% | Zero-length — never populated | WARNING |
+| MSI | Labeled | Char | 100% | Zero-length — never populated | WARNING |
+| TMB | Labeled | Char | 100% | Zero-length — never populated | WARNING |
+| HTNFL | Labeled | Char | 100% | Zero-length — never populated | WARNING |
+| HEPATICFL | Labeled | Char | 100% | Zero-length — never populated | WARNING |
+| CVDFL | Labeled | Char | 100% | Zero-length — never populated | WARNING |
+| PATHSTAGEGRP | Labeled | Char | 100% | Zero-length — never populated | WARNING |
+| NEOADJFL | Labeled | Char | 100% | Zero-length — never populated | WARNING |
+| ADJUVFL | Labeled | Char | 100% | Zero-length — never populated | WARNING |
+
+**Verdict: BLOCKING** (SAFFL, ITTFL, TRTP, TRTPN absent; 9 zero-length variables; SMOKSTAT zero-length)
+
+---
+
+### ADAE — Adverse Events Analysis Dataset
+
+**Records:** 131 | **Variables:** 20
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| AESEQ | ✓ PRESENT |
+| TRTEMFL | ✓ PRESENT |
+| AESTDTC | ✓ PRESENT |
+| AESER | ✓ PRESENT |
+| AESEV | ✓ PRESENT |
+| DOMAIN | ✗ MISSING |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | ✓ Labeled | Char | 0% | — | PASS |
+| USUBJID | ✓ Labeled | Char | 0% | — | PASS |
+| TRTEMFL | ✓ Labeled | Char | 0% | All "Y" — only TEAE records included; PASS | PASS |
+| DOMAIN | ✗ MISSING | — | — | DOMAIN variable absent | BLOCKING |
+| AESTDT | ✓ Labeled | Num | 0% | Numeric date — acceptable | PASS |
+| AEENDT | ✓ Labeled | Num | 0% | Numeric date | PASS |
+| ASTDY | ✓ Labeled | Num | 0% | Analysis start day | PASS |
+| AENDY | ✓ Labeled | Num | 0% | Analysis end day | PASS |
+| AEDUR | ✓ Labeled | Num | 0% | Duration in days | PASS |
+| AESEVN | ✓ Labeled | Num | 0% | Numeric severity — acceptable | PASS |
+| HOSPDUR | ✓ Labeled | Num | 0% | Hospitalization duration | PASS |
+
+**Verdict: BLOCKING** (DOMAIN variable absent; all other variables well-structured)
+
+---
+
+### ADBS — Biospecimen Analysis Dataset
+
+**Records:** 113 | **Variables:** 9
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| BSDTC | ✓ PRESENT |
+| BSTRT | ✓ PRESENT |
+| BSHIST | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | ✓ Labeled | Char | 0% | — | PASS |
+| USUBJID | ✓ Labeled | Char | 0% | — | PASS |
+| BSDTC | ✓ Labeled | Char | 0% | ISO 8601 valid | PASS |
+| BSDT | ✓ Labeled | Num | 0% | Numeric date | PASS |
+| BSTRT | ✓ Labeled | Char | 0% | FFPE, H&E values | PASS |
+| BSLOC | ✓ Labeled | Char | 0% | ICD-O codes | WARNING |
+| BSHIST | ✓ Labeled | Char | 0% | ICD-O morphology codes | PASS |
+| BSSPEC | ✓ Labeled | Char | 0% | Primary Tumor, Metastatic Tissue | PASS |
+| ADY | ✓ Labeled | Num | 0% | Analysis day | PASS |
+
+**Verdict: WARNING** (BSLOC uses ICD-O site codes — verify expected format; PARAM/PARAMCD absent — ADBS is non-standard structure)
+
+---
+
+### ADLOT — Line of Therapy Analysis Dataset
+
+**Records:** 111 | **Variables:** 10
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| LOT | ✓ PRESENT |
+| LOTSTDTC | ✓ PRESENT |
+| REGIMEN | ✓ PRESENT |
+| INDEXFL | ✓ PRESENT |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | Study Identifier | Char | 0% | — | PASS |
+| USUBJID | Unique Subject Identifier | Char | 0% | — | PASS |
+| LOT | Line of Therapy Number | Num | 0% | Numeric | PASS |
+| LOTSTDTC | Line Start Date | Char | 0% | ISO 8601 valid | PASS |
+| LOTENDTC | Line End Date | Char | 0% | ISO 8601 valid | PASS |
+| LOTSTDT | Line Start Date (Numeric) | Num | 0% | — | PASS |
+| LOTENDT | Line End Date (Numeric) | Num | 0% | — | PASS |
+| REGIMEN | Regimen Name | Char | 0% | — | PASS |
+| INDEXFL | Index Line Flag | Char | 0% | Y — valid | PASS |
+| LOTENDRSN | Line End Reason | Char | 0% | — | PASS |
+
+**Verdict: NOTE** (ADLOT is a custom non-standard ADaM dataset; well-labeled and structured; PARAM/PARAMCD structure not applicable)
+
+---
+
+### ADRS — Response Analysis Dataset
+
+**Records:** 193 | **Variables:** 12
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| PARAMCD | ✓ PRESENT |
+| PARAM | ✓ PRESENT |
+| AVALC | ✓ PRESENT |
+| AVAL | ✓ PRESENT |
+| ADT | ✓ PRESENT |
+| SAFFL | ✗ MISSING |
+| TRTP | ✗ MISSING |
+| TRTPN | ✗ MISSING |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| STUDYID | ✓ Labeled | Char | 0% | — | PASS |
+| USUBJID | ✓ Labeled | Char | 0% | — | PASS |
+| PARAMCD | ✓ Labeled | Char | 0% | BOR, OVRLRESP — meaningful codes | PASS |
+| PARAM | ✓ Labeled | Char | 0% | Full descriptions present | PASS |
+| AVALC | ✓ Labeled | Char | 0% | PD, SD, PR, NE — valid RECIST values | PASS |
+| AVAL | ✓ Labeled | Num | 0% | Numeric encoding | PASS |
+| ADT | ✓ Labeled | Num | 0% | Numeric date | PASS |
+| ADY | ✓ Labeled | Num | 0% | Analysis day | PASS |
+| VISIT | ✓ Labeled | Char | 0% | Visit names | PASS |
+| VISITNUM | ✓ Labeled | Num | 0% | — | PASS |
+| ABLFL | ✓ Labeled | Char | 0% | Y/empty — valid | PASS |
+| ANL01FL | ✓ Labeled | Char | 0% | Y/empty — valid | PASS |
+| SAFFL | ✗ MISSING | — | — | Safety flag required | BLOCKING |
+| TRTP | ✗ MISSING | — | — | Planned Treatment required | BLOCKING |
+| TRTPN | ✗ MISSING | — | — | Numeric Treatment required | BLOCKING |
+
+**Verdict: BLOCKING** (SAFFL, TRTP, TRTPN absent — required for regulatory ADaM BDS)
+
+---
+
+### ADTTE — Time-to-Event Analysis Dataset
+
+**Records:** 83 | **Variables:** 10
+
+#### Required Variables
+
+| Variable | Status |
+|----------|--------|
+| STUDYID | ✓ PRESENT |
+| USUBJID | ✓ PRESENT |
+| PARAMCD | ✓ PRESENT |
+| PARAM | ✓ PRESENT |
+| AVAL | ✓ PRESENT |
+| CNSR | ✓ PRESENT |
+| STARTDT | ✓ PRESENT |
+| ADT | ✓ PRESENT |
+| SAFFL | ✗ MISSING |
+| ITTFL | ✗ MISSING |
+
+#### Variable Detail
+
+| Variable | Label | Type | Missing % | Issues | Severity |
+|----------|-------|------|-----------|--------|----------|
+| USUBJID | ✓ Labeled | Char | 0% | Note: column order has USUBJID before STUDYID — non-standard | NOTE |
+| STUDYID | ✓ Labeled | Char | 0% | — | PASS |
+| PARAMCD | ✓ Labeled | Char | 0% | OS, PFS, DOR — meaningful | PASS |
+| PARAM | ✓ Labeled | Char | 0% | Full descriptions in months | PASS |
+| STARTDT | ✓ Labeled | Num | 0% | Numeric date — acceptable | PASS |
+| ADT | ✓ Labeled | Num | 0% | Analysis date | PASS |
+| AVAL | ✓ Labeled | Num | 0% | Time-to-event in months | PASS |
+| CNSR | ✓ Labeled | Num | 0% | 0=event, 1=censored — valid convention | PASS |
+| EVNTDESC | ✓ Labeled | Char | 0% | Event description present | PASS |
+| CNSDTDSC | ✓ Labeled | Char | 0% | Censoring date description present | PASS |
+| SAFFL | ✗ MISSING | — | — | Safety flag required | BLOCKING |
+| ITTFL | ✗ MISSING | — | — | ITT flag required | BLOCKING |
+
+**Verdict: BLOCKING** (SAFFL, ITTFL absent; USUBJID/STUDYID column order non-standard)
+
+---
+
+## RAG Reference Log
+
+| Query | Result Summary |
+|-------|---------------|
+| SDTM DM demographics required variables USUBJID RFSTDTC SEX RACE ETHNIC ARMCD ARM | RAG returned ADS-code content; relied on CDISC SDTM-IG knowledge for DM requirements |
+| SDTM AE adverse events required variables AETERM AEDECOD AESEV AESER AEREL AESEQ | RAG returned questionnaire CT; relied on CDISC SDTM-IG knowledge for AE requirements |
+| SDTM EX exposure required variables EXTRT EXDOSE EXDOSEU EXSTDTC EXROUTE EXDOSU | RAG returned Observation Class definitions; relied on SDTM-IG for EX requirements |
+| SDTM LB laboratory results required variables LBTESTCD LBTEST LBSTRESN LBSTRESU LBBLFL | RAG returned Vital Signs Test Code (C66741); confirmed VS test codes HR, SYSBP etc. |
+| CDISC controlled terminology SEX codelist C66731 values | RAG confirmed: C66731 Sex codelist: F, INTERSEX, M, U (closed, not extensible) |
+| CDISC controlled terminology RACE codelist C74457 | RAG confirmed: C74457 Race codelist: AMERICAN INDIAN OR ALASKA NATIVE, ASIAN, BLACK OR AFRICAN AMERICAN, NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER, NOT REPORTED, OTHER, UNKNOWN, WHITE (not extensible) |
+| CDISC controlled terminology ETHNIC codelist | RAG confirmed: C66790 Ethnic Group: HISPANIC OR LATINO, NOT HISPANIC OR LATINO, NOT REPORTED, UNKNOWN (not extensible) |
+| CDISC controlled terminology adverse event severity AESEV MILD MODERATE SEVERE | RAG confirmed: C66769 Severity/Intensity Scale for AEs: MILD, MODERATE, SEVERE (not extensible) |
+| CDISC controlled terminology AESER serious event Y N | Returned severity/disposition content; AESER Y/N confirmed from SDTM-IG knowledge |
+| CDISC controlled terminology route of administration EXROUTE INTRAVENOUS ORAL | RAG confirmed: C66729 Route of Administration (extensible): INTRAVENOUS, ORAL are valid values |
+| CDISC controlled terminology disposition DSDECOD COMPLETED DEATH | RAG returned subcategory disposition content; DSDECOD "COMPLETED" vs "COMPLETED STUDY" noted |
+| ADaM analysis flag variable SAFFL ITTFL TRTEMFL Y blank empty string | RAG returned ADaM structure subclass info; flag encoding Y/blank confirmed from ADaM-IG knowledge |

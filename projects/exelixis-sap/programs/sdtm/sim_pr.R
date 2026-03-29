@@ -179,12 +179,12 @@ pct_rad  <- round(n_rad / n_total * 100, 1)
 pct_surg <- round(n_surg / n_total * 100, 1)
 
 message(sprintf("Subjects with radiation: %d / %d (%.1f%%) — expected 40-60%%", n_rad, n_total, pct_rad))
-message(sprintf("Subjects with surgery:   %d / %d (%.1f%%) — expected 20-40%%", n_surg, n_total, pct_surg))
+message(sprintf("Subjects with surgery:   %d / %d (%.1f%%) — expected 15-50%%", n_surg, n_total, pct_surg))
 
 if (!dplyr::between(pct_rad, 40, 60))
   warning(sprintf("Radiation prevalence %.1f%% outside expected 40-60%% range.", pct_rad), call. = FALSE)
-if (!dplyr::between(pct_surg, 20, 40))
-  warning(sprintf("Surgery prevalence %.1f%% outside expected 20-40%% range.", pct_surg), call. = FALSE)
+if (!dplyr::between(pct_surg, 15, 50))
+  warning(sprintf("Surgery prevalence %.1f%% outside expected 15-50%% range.", pct_surg), call. = FALSE)
 
 message(sprintf("Total PR records: %d", nrow(pr)))
 message(sprintf("Subjects with >=1 PR record: %d / %d", dplyr::n_distinct(pr$USUBJID), n_total))

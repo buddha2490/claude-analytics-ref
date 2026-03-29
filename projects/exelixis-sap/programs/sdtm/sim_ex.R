@@ -16,6 +16,7 @@ suppressPackageStartupMessages({
   library(tibble)
   library(haven)
   library(xportr)
+  library(stringr)
 })
 
 set.seed(42 + 9)  # 51 — EX is domain order 9
@@ -139,12 +140,15 @@ ex <- ex_raw %>%
     STUDYID = "NPM008",
     DOMAIN  = "EX",
     EXSEQ   = 1L,
-    EXLNKID = "1"
+    EXLNKID = "1",
+    # EXDOSE: numeric dose per administration; for combination doses (e.g. "75 + 10"),
+    # extract the first numeric value only
+    EXDOSE  = as.numeric(str_extract(EXDOSTXT, "^[0-9.]+"))
   ) %>%
   dplyr::select(
     STUDYID, DOMAIN, USUBJID,
     EXSEQ, EXLNKID,
-    EXTRT, EXDOSTXT, EXDOSU, EXROUTE, EXADJ,
+    EXTRT, EXDOSE, EXDOSTXT, EXDOSU, EXROUTE, EXADJ,
     EXSTDTC, EXENDTC
   )
 
@@ -155,20 +159,20 @@ xportr_meta <- tibble::tibble(
   variable = c(
     "STUDYID", "DOMAIN", "USUBJID",
     "EXSEQ", "EXLNKID",
-    "EXTRT", "EXDOSTXT", "EXDOSU", "EXROUTE", "EXADJ",
+    "EXTRT", "EXDOSE", "EXDOSTXT", "EXDOSU", "EXROUTE", "EXADJ",
     "EXSTDTC", "EXENDTC"
   ),
   label = c(
     "Study Identifier", "Domain Abbreviation", "Unique Subject Identifier",
     "Sequence Number", "Link ID",
-    "Name of Treatment", "Dose Description", "Dose Units",
-    "Route of Administration", "Reason for Dose Adjustment",
+    "Name of Treatment", "Dose per Administration", "Dose Description",
+    "Dose Units", "Route of Administration", "Reason for Dose Adjustment",
     "Start Date/Time of Treatment", "End Date/Time of Treatment"
   ),
   type = c(
     "character", "character", "character",
     "numeric",   "character",
-    "character", "character", "character", "character", "character",
+    "character", "numeric",   "character", "character", "character", "character",
     "character", "character"
   )
 )

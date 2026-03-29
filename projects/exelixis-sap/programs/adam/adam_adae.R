@@ -17,7 +17,7 @@
 #   - Flag convention: Y/blank per plan Section 5 Global Conventions (R7)
 #
 # Dependencies:
-#   - ADSL (projects/exelixis-sap/output-data/adam/adsl.xpt) — required for TRTSDT
+#   - ADSL (output-data/adam/adsl.xpt) — required for TRTSDT
 #
 # Notes:
 #   - HO linkage via HOHNKID = as.character(AESEQ) per R6 decision
@@ -33,10 +33,10 @@ library(lubridate)
 library(xportr)
 
 # --- Read source data --------------------------------------------------------
-ae <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/ae.xpt")
-ho <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/ho.xpt")
-adsl <- haven::read_xpt("projects/exelixis-sap/output-data/adam/adsl.xpt")
-dm <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/dm.xpt")
+ae <- haven::read_xpt("output-data/sdtm/ae.xpt")
+ho <- haven::read_xpt("output-data/sdtm/ho.xpt")
+adsl <- haven::read_xpt("output-data/adam/adsl.xpt")
+dm <- haven::read_xpt("output-data/sdtm/dm.xpt")
 
 # --- Data Contract Validation (Step 4 Checkpoint) ----------------------------
 message("\n=== Data Contract Validation ===")
@@ -106,6 +106,10 @@ message("Data contract validation complete.\n")
 # Start with AE domain, add numeric dates and study days
 
 adae <- ae %>%
+  # Add DOMAIN variable (inherited from SDTM AE per ADaM-IG)
+  mutate(
+    DOMAIN = "AE"
+  ) %>%
   # Convert dates to numeric
   mutate(
     AESTDT = as.numeric(as.Date(AESTDTC)),
@@ -193,7 +197,7 @@ adae <- adae %>%
 # Per plan Section 4.5: 20 variables expected in ADAE
 adae <- adae %>%
   dplyr::select(
-    STUDYID, USUBJID, AESEQ,
+    STUDYID, DOMAIN, USUBJID, AESEQ,
     AETERM, AEDECOD, AESOC,
     AESTDTC, AEENDTC, AESTDT, AEENDT,
     ASTDY, AENDY, AEDUR,
@@ -205,7 +209,7 @@ adae <- adae %>%
 # --- Apply variable labels and types ------------------------------------------
 adae_meta <- tibble::tibble(
   variable = c(
-    "STUDYID", "USUBJID", "AESEQ",
+    "STUDYID", "DOMAIN", "USUBJID", "AESEQ",
     "AETERM", "AEDECOD", "AESOC",
     "AESTDTC", "AEENDTC", "AESTDT", "AEENDT",
     "ASTDY", "AENDY", "AEDUR",
@@ -215,6 +219,7 @@ adae_meta <- tibble::tibble(
   ),
   label = c(
     "Study Identifier",
+    "Domain Abbreviation",
     "Unique Subject Identifier",
     "Adverse Event Sequence Number",
     "Reported Term for the Adverse Event",
@@ -236,7 +241,7 @@ adae_meta <- tibble::tibble(
     "Hospitalization Duration (Days)"
   ),
   type = c(
-    "character", "character", "integer",
+    "character", "character", "character", "integer",
     "character", "character", "character",
     "character", "character", "numeric", "numeric",
     "numeric", "numeric", "numeric",
@@ -286,7 +291,7 @@ if (!all(adae$USUBJID %in% dm$USUBJID)) {
 message("\nValidation checks passed.")
 
 # --- Save dataset -------------------------------------------------------------
-output_dir <- "projects/exelixis-sap/output-data/adam"
+output_dir <- "output-data/adam"
 if (!dir.exists(output_dir)) {
   dir.create(output_dir, recursive = TRUE)
 }

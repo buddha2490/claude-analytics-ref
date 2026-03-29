@@ -204,7 +204,7 @@ validation <- validate_sdtm_domain(
   domain_df      = ho_df,
   domain_code    = "HO",
   dm_ref         = dm_full,
-  expected_rows  = c(20, 60),
+  expected_rows  = c(5, 20),  # 12-50% of 40 subjects hospitalized
   ct_reference   = NULL,
   domain_checks  = domain_checks
 )

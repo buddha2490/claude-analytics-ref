@@ -21,8 +21,8 @@
 #   - Month conversion factor: days / 30.4375 (per SAP, see Open-questions R4)
 #
 # Dependencies:
-#   - ADSL (projects/exelixis-sap/output-data/adam/adsl.xpt) — TRTSDT, TRTEDT, RFENDTC
-#   - ADRS (projects/exelixis-sap/output-data/adam/adrs.xpt) — BOR and response dates for DOR
+#   - ADSL (output-data/adam/adsl.xpt) — TRTSDT, TRTEDT, RFENDTC
+#   - ADRS (output-data/adam/adrs.xpt) — BOR and response dates for DOR
 # =============================================================================
 
 # --- Load packages -----------------------------------------------------------
@@ -34,10 +34,10 @@ library(lubridate)
 library(xportr)
 
 # --- Read source data --------------------------------------------------------
-dm <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/dm.xpt")
-rs <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/rs.xpt")
-adsl <- haven::read_xpt("projects/exelixis-sap/output-data/adam/adsl.xpt")
-adrs <- haven::read_xpt("projects/exelixis-sap/output-data/adam/adrs.xpt")
+dm <- haven::read_xpt("output-data/sdtm/dm.xpt")
+rs <- haven::read_xpt("output-data/sdtm/rs.xpt")
+adsl <- haven::read_xpt("output-data/adam/adsl.xpt")
+adrs <- haven::read_xpt("output-data/adam/adrs.xpt")
 
 # --- Data Contract Validation Checkpoint -------------------------------------
 
@@ -46,7 +46,7 @@ message("\n=== Data Contract Validation Checkpoint ===")
 # Expected variables from plan Section 4.6
 plan_vars_dm <- c("USUBJID", "DTHDTC", "DTHFL", "STUDYID")
 plan_vars_rs <- c("USUBJID", "RSSTRESC", "RSDTC", "RSTESTCD")
-plan_vars_adsl <- c("USUBJID", "TRTSDT", "TRTEDT", "RFENDTC")
+plan_vars_adsl <- c("USUBJID", "TRTSDT", "TRTEDT", "RFENDTC", "SAFFL", "ITTFL")
 plan_vars_adrs <- c("USUBJID", "PARAMCD", "AVALC", "ADT")
 
 actual_vars_dm <- names(dm)
@@ -181,10 +181,13 @@ first_response <- adrs %>%
 
 # --- Merge all event data with ADSL ------------------------------------------
 adsl_tte <- adsl %>%
-  dplyr::select(USUBJID, STUDYID, TRTSDT, TRTEDT, RFENDTC) %>%
+  dplyr::select(USUBJID, STUDYID, TRTSDT, TRTEDT, RFENDTC, SAFFL, ITTFL) %>%
   dplyr::mutate(
     RFENDDT = as.numeric(as.Date(RFENDTC)),
-    TRTSDTN = TRTSDT  # Already numeric in ADSL
+    TRTSDTN = TRTSDT,  # Already numeric in ADSL
+    # TRTP/TRTPN: planned treatment (single-arm study)
+    TRTP  = "Cabozantinib + Nivolumab",
+    TRTPN = 1L
   ) %>%
   dplyr::left_join(progression, by = "USUBJID") %>%
   dplyr::left_join(death, by = "USUBJID") %>%
@@ -250,7 +253,7 @@ adtte_pfs <- adsl_tte %>%
     CNSDTDSC = CNSRTYPE
   ) %>%
   dplyr::select(USUBJID, STUDYID, PARAMCD, PARAM, STARTDT, ADT, AVAL, CNSR,
-         EVNTDESC, CNSDTDSC)
+         EVNTDESC, CNSDTDSC, SAFFL, ITTFL, TRTP, TRTPN)
 
 # --- Derive OS parameter -----------------------------------------------------
 adtte_os <- adsl_tte %>%
@@ -283,7 +286,7 @@ adtte_os <- adsl_tte %>%
     CNSDTDSC = CNSRTYPE
   ) %>%
   dplyr::select(USUBJID, STUDYID, PARAMCD, PARAM, STARTDT, ADT, AVAL, CNSR,
-         EVNTDESC, CNSDTDSC)
+         EVNTDESC, CNSDTDSC, SAFFL, ITTFL, TRTP, TRTPN)
 
 # --- Derive DOR parameter (responders only) ----------------------------------
 # DOR is only calculated for subjects who achieved CR or PR
@@ -340,7 +343,7 @@ adtte_dor <- adsl_tte %>%
     CNSDTDSC = CNSRTYPE
   ) %>%
   dplyr::select(USUBJID, STUDYID, PARAMCD, PARAM, STARTDT, ADT, AVAL, CNSR,
-         EVNTDESC, CNSDTDSC)
+         EVNTDESC, CNSDTDSC, SAFFL, ITTFL, TRTP, TRTPN)
 
 # --- Combine all parameters --------------------------------------------------
 adtte <- dplyr::bind_rows(adtte_pfs, adtte_os, adtte_dor) %>%
@@ -349,7 +352,8 @@ adtte <- dplyr::bind_rows(adtte_pfs, adtte_os, adtte_dor) %>%
 # --- Apply variable labels and types -----------------------------------------
 adtte_meta <- tibble::tibble(
   variable = c("STUDYID", "USUBJID", "PARAMCD", "PARAM", "STARTDT",
-               "ADT", "AVAL", "CNSR", "EVNTDESC", "CNSDTDSC"),
+               "ADT", "AVAL", "CNSR", "EVNTDESC", "CNSDTDSC",
+               "SAFFL", "ITTFL", "TRTP", "TRTPN"),
   label = c(
     "Study Identifier",
     "Unique Subject Identifier",
@@ -360,10 +364,15 @@ adtte_meta <- tibble::tibble(
     "Analysis Value (Time in Months)",
     "Censoring (0=Event, 1=Censored)",
     "Event Description",
-    "Censoring Date Description"
+    "Censoring Date Description",
+    "Safety Population Flag",
+    "Intent-to-Treat Population Flag",
+    "Planned Treatment",
+    "Planned Treatment (N)"
   ),
   type = c("character", "character", "character", "character", "numeric",
-           "numeric", "numeric", "numeric", "character", "character")
+           "numeric", "numeric", "numeric", "character", "character",
+           "character", "character", "character", "numeric")
 )
 
 adtte <- adtte %>%
@@ -418,8 +427,8 @@ adtte %>%
   print()
 
 # --- Save dataset ------------------------------------------------------------
-haven::write_xpt(adtte, "projects/exelixis-sap/output-data/adam/adtte.xpt", version = 5)
-saveRDS(adtte, "projects/exelixis-sap/output-data/adam/adtte.rds")
-message("\nDataset saved to: projects/exelixis-sap/output-data/adam/adtte.xpt")
-message("Dataset saved to: projects/exelixis-sap/output-data/adam/adtte.rds")
+haven::write_xpt(adtte, "output-data/adam/adtte.xpt", version = 5)
+saveRDS(adtte, "output-data/adam/adtte.rds")
+message("\nDataset saved to: output-data/adam/adtte.xpt")
+message("Dataset saved to: output-data/adam/adtte.rds")
 message("Program complete.")

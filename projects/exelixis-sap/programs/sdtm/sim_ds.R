@@ -10,6 +10,10 @@
 
 set.seed(61)
 
+library(haven)
+library(xportr)
+library(tibble)
+
 # --- Load dependencies -------------------------------------------------------
 dm_full <- readRDS("output-data/sdtm/dm.rds")
 
@@ -48,10 +52,11 @@ ds <- dm_full %>%
       alive_category == "In-Hospice" ~ "In-Hospice",
       TRUE ~ "Last Known Alive"
     ),
+    # DSDECOD: CDISC CT — "COMPLETED STUDY" (C25548) for alive subjects
     DSDECOD = case_when(
       deceased ~ "DEATH",
-      alive_category == "In-Hospice" ~ "COMPLETED",
-      TRUE ~ "COMPLETED"
+      alive_category == "In-Hospice" ~ "COMPLETED STUDY",
+      TRUE ~ "COMPLETED STUDY"
     ),
 
     # DSDTC: DTHDTC if deceased, else RFSTDTC + os_days (last contact)
@@ -88,7 +93,7 @@ validate_ds <- function(domain_df, dm_ref) {
     left_join(dm_ref %>% select(USUBJID, DTHFL, DTHDTC, RFSTDTC), by = "USUBJID")
 
   death_mismatch <- ds_dm %>%
-    filter(
+    dplyr::filter(
       (DSDECOD == "DEATH" & (is.na(DTHFL) | DTHFL != "Y")) |
       (DSDECOD != "DEATH" & !is.na(DTHFL) & DTHFL == "Y")
     )
@@ -104,7 +109,7 @@ validate_ds <- function(domain_df, dm_ref) {
 
   # D2: DSDTC >= RFSTDTC
   invalid_dates <- ds_dm %>%
-    filter(!is.na(DSDTC), !is.na(RFSTDTC), DSDTC < RFSTDTC)
+    dplyr::filter(!is.na(DSDTC), !is.na(RFSTDTC), DSDTC < RFSTDTC)
 
   checks[[2]] <- list(
     check_id = "D2",
@@ -135,10 +140,10 @@ validate_ds <- function(domain_df, dm_ref) {
     else ""
   )
 
-  # D5: Valid DSDECOD values
-  valid_dsdecod <- c("DEATH", "COMPLETED", "LOST TO FOLLOW-UP")
+  # D5: Valid DSDECOD values (CDISC CT)
+  valid_dsdecod <- c("DEATH", "COMPLETED STUDY", "LOST TO FOLLOW-UP")
   invalid_dsdecod <- domain_df %>%
-    filter(!DSDECOD %in% valid_dsdecod)
+    dplyr::filter(!DSDECOD %in% valid_dsdecod)
 
   checks[[5]] <- list(
     check_id = "D5",
@@ -164,16 +169,42 @@ validation_result <- validate_sdtm_domain(
   domain_checks = validate_ds
 )
 
+# --- Apply variable labels and write XPT ------------------------------------
+ds_meta <- tibble(
+  variable = c("STUDYID", "DOMAIN", "USUBJID", "DSSEQ",
+               "DSTERM", "DSDECOD", "DSCAT", "DSDTC"),
+  label = c(
+    "Study Identifier",
+    "Domain Abbreviation",
+    "Unique Subject Identifier",
+    "Sequence Number",
+    "Reported Term for the Disposition Event",
+    "Standardized Disposition Term",
+    "Category for Disposition Event",
+    "Date/Time of Disposition Event"
+  ),
+  type = c(
+    "character", "character", "character", "numeric",
+    "character", "character", "character", "character"
+  )
+)
+
+ds_xpt <- ds %>%
+  xportr_label(ds_meta, domain = "DS") %>%
+  xportr_type(ds_meta, domain = "DS")
+
 # --- Save output -------------------------------------------------------------
-saveRDS(ds, "output-data/sdtm/ds.rds")
-message("✓ DS saved: output-data/sdtm/ds.rds (", nrow(ds), " rows)")
+saveRDS(ds_xpt, "output-data/sdtm/ds.rds")
+haven::write_xpt(ds_xpt, "output-data/sdtm/ds.xpt")
+message("✓ DS saved: output-data/sdtm/ds.rds (", nrow(ds_xpt), " rows)")
+message("✓ DS saved: output-data/sdtm/ds.xpt")
 
 # --- Log result --------------------------------------------------------------
 log_sdtm_result(
   domain_code = "DS",
   wave = 1,
-  row_count = nrow(ds),
-  col_count = ncol(ds),
+  row_count = nrow(ds_xpt),
+  col_count = ncol(ds_xpt),
   validation_result = validation_result
 )
 
@@ -181,4 +212,4 @@ message("✓ DS validation: ", validation_result$verdict)
 message("✓ DS log: logs/sdtm_domain_log_", format(Sys.Date(), "%Y-%m-%d"), ".md")
 
 # --- Return data frame -------------------------------------------------------
-ds
+ds_xpt

@@ -17,8 +17,8 @@ library(xportr)
 
 # --- Read source data -------------------------------------------------------
 # Read from XPT files only (not .rds) per plan Section 5 Global Conventions
-dm <- read_xpt("projects/exelixis-sap/output-data/sdtm/dm.xpt")
-bs <- read_xpt("projects/exelixis-sap/output-data/sdtm/bs.xpt")
+dm <- read_xpt("output-data/sdtm/dm.xpt")
+bs <- read_xpt("output-data/sdtm/bs.xpt")
 
 message("Loaded DM: ", nrow(dm), " subjects")
 message("Loaded BS: ", nrow(bs), " records")
@@ -209,9 +209,9 @@ message("\n✓ Validation complete")
 
 # --- Save dataset -----------------------------------------------------------
 # Write to XPT format
-write_xpt(adbs, "projects/exelixis-sap/output-data/adam/adbs.xpt")
-saveRDS(adbs, "projects/exelixis-sap/output-data/adam/adbs.rds")
+write_xpt(adbs, "output-data/adam/adbs.xpt")
+saveRDS(adbs, "output-data/adam/adbs.rds")
 
-message("\n✓ ADBS dataset saved to: projects/exelixis-sap/output-data/adam/adbs.xpt")
-message("✓ ADBS dataset saved to: projects/exelixis-sap/output-data/adam/adbs.rds")
+message("\n✓ ADBS dataset saved to: output-data/adam/adbs.xpt")
+message("✓ ADBS dataset saved to: output-data/adam/adbs.rds")
 message("Final dimensions: ", nrow(adbs), " rows × ", ncol(adbs), " columns")

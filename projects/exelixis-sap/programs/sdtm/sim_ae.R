@@ -101,15 +101,17 @@ soc_map <- c(
 )
 
 # --- AEREL mapping -----------------------------------------------------------
-# IO drugs → "IO SACT"; chemo + targeted → "non-IO SACT"
+# IO drugs → "POSSIBLE" (possibly related to IO treatment, CDISC CT)
+# chemo + targeted → "RELATED" (related to non-IO SACT, CDISC CT)
 get_aerel <- function(extrt) {
-  if (extrt %in% io_drugs) "IO SACT" else "non-IO SACT"
+  if (extrt %in% io_drugs) "POSSIBLE" else "RELATED"
 }
 
 # --- Helper: sample AEACN by grade ------------------------------------------
+# Per CDISC CT (C66767): empty strings replaced with "NOT APPLICABLE"
 sample_aeacn <- function(grade) {
   if (grade %in% c(1, 2)) {
-    sample(c(NA_character_, "DRUG INTERRUPTED"), size = 1, prob = c(0.80, 0.20))
+    sample(c("NOT APPLICABLE", "DRUG INTERRUPTED"), size = 1, prob = c(0.80, 0.20))
   } else if (grade == 3) {
     sample(
       c("DRUG INTERRUPTED", "DRUG WITHDRAWN", "DOSE NOT CHANGED"),
@@ -229,7 +231,7 @@ ae_list <- purrr::pmap(
           AESTDTC = format(ex_start, "%Y-%m-%d"),
           AEENDTC = format(ex_start + 7, "%Y-%m-%d"),
           AEREL   = get_aerel(extrt),
-          AEACN   = NA_character_,
+          AEACN   = "NOT APPLICABLE",
           AESHOSP = "N", AESER = "N"
         )
       }
@@ -411,7 +413,7 @@ ae_domain_checks <- function(ae_df, dm_ref) {
 # --- Prepare CT reference for validation -------------------------------------
 ct_reference_ae <- list(
   AESEV = c("MILD", "MODERATE", "SEVERE", "LIFE THREATENING"),
-  AEREL = c("IO SACT", "non-IO SACT"),
+  AEREL = c("POSSIBLE", "RELATED"),
   AESHOSP = c("Y", "N"),
   AESER = c("Y", "N")
 )
@@ -422,7 +424,7 @@ validation_result <- validate_sdtm_domain(
   domain_df = ae,
   domain_code = "AE",
   dm_ref = dm,
-  expected_rows = c(200, 800),
+  expected_rows = c(80, 200),  # 2-5 AEs per subject for 40 subjects
   ct_reference = ct_reference_ae,
   domain_checks = ae_domain_checks
 )

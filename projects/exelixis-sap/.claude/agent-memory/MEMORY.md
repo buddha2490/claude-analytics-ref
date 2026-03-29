@@ -8,6 +8,7 @@ This file indexes study-specific memories that agents should consult before impl
 - [data_contract_validation_pattern.md](data_contract_validation_pattern.md) — Proactive checkpoint validates source variables exist before derivations
 - [adrs_confirmed_response_pattern.md](adrs_confirmed_response_pattern.md) — ADRS BOR confirmation requires scanning ALL subsequent assessments not just next one
 - [baseline_max_warning_pattern.md](baseline_max_warning_pattern.md) — max() on empty vector produces -Inf warning requires is.finite() check
+- [ex_combination_dose_parsing.md](ex_combination_dose_parsing.md) — EX EXDOSE for combination regimens silently drops second agent dose via str_extract
 
 ## Project Memories
 

@@ -195,7 +195,9 @@ mh <- mh_raw %>%
   dplyr::group_by(USUBJID) %>%
   dplyr::mutate(MHSEQ = row_number()) %>%
   dplyr::ungroup() %>%
-  dplyr::select(STUDYID, DOMAIN, USUBJID, MHSEQ, MHTERM, MHCAT, MHSTDTC, MHENDTC)
+  # MHDECOD: Dictionary-Derived Term — copy of MHTERM for simulated data
+  dplyr::mutate(MHDECOD = MHTERM) %>%
+  dplyr::select(STUDYID, DOMAIN, USUBJID, MHSEQ, MHTERM, MHDECOD, MHCAT, MHSTDTC, MHENDTC)
 
 
 # --- MH-specific validation checks --------------------------------------------
@@ -308,7 +310,7 @@ log_sdtm_result(
 mh_meta <- tibble(
   variable = c(
     "STUDYID", "DOMAIN", "USUBJID", "MHSEQ",
-    "MHTERM", "MHCAT", "MHSTDTC", "MHENDTC"
+    "MHTERM", "MHDECOD", "MHCAT", "MHSTDTC", "MHENDTC"
   ),
   label = c(
     "Study Identifier",
@@ -316,13 +318,14 @@ mh_meta <- tibble(
     "Unique Subject Identifier",
     "Sequence Number",
     "Reported Term for the Medical History",
+    "Dictionary-Derived Term",
     "Category for Medical History",
     "Start Date/Time of Medical History Event",
     "End Date/Time of Medical History Event"
   ),
   type = c(
     "character", "character", "character", "numeric",
-    "character", "character", "character", "character"
+    "character", "character", "character", "character", "character"
   )
 )
 

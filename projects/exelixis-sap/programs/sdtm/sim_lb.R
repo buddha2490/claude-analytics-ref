@@ -9,6 +9,8 @@ suppressPackageStartupMessages({
   library(lubridate)
   library(stringr)
   library(haven)
+  library(xportr)
+  library(tibble)
 })
 
 set.seed(49)  # 42 + 7
@@ -513,9 +515,15 @@ lb <- bind_rows(lb_clinical, lb_genomic) %>%
   ungroup() %>%
   mutate(
     STUDYID = STUDYID,
-    DOMAIN = "LB",
-    LBBLFL = NA_character_
+    DOMAIN = "LB"
   ) %>%
+  # LBBLFL: "Y" for earliest record per USUBJID x LBTESTCD (minimum LBDTC)
+  group_by(USUBJID, LBTESTCD) %>%
+  mutate(
+    min_lbdtc = min(LBDTC, na.rm = TRUE),
+    LBBLFL = ifelse(LBDTC == min_lbdtc, "Y", "")
+  ) %>%
+  ungroup() %>%
   select(
     STUDYID, DOMAIN, USUBJID, LBSEQ, LBTESTCD, LBTEST, LBCAT,
     LBORRES, LBORRESU, LBSTRESC, LBSTRESN, LBSTRESU, LBBLFL,
@@ -527,15 +535,15 @@ message("✓ Combined LB records: ", nrow(lb), " total (clinical + genomic)")
 # --- Validation --------------------------------------------------------------
 message("\n--- LB Validation ---")
 
-# Row count check (200-600 expected)
-if (nrow(lb) < 200 || nrow(lb) > 600) {
+# Row count check (1200-1600 expected: ~360 clinical + ~1040 genomic for 40 subjects)
+if (nrow(lb) < 1200 || nrow(lb) > 1600) {
   warning(
     "LB row count outside expected range: ", nrow(lb),
-    " (expected 200-600)",
+    " (expected 1200-1600 for 40 subjects with genomic tests)",
     call. = FALSE
   )
 } else {
-  message("✓ Row count OK: ", nrow(lb), " records (200-600 expected)")
+  message("✓ Row count OK: ", nrow(lb), " records (1200-1600 expected)")
 }
 
 # All subjects present
@@ -553,7 +561,7 @@ message("✓ All 40 subjects present in LB")
 # LBSEQ uniqueness within USUBJID
 lb_seq_check <- lb %>%
   group_by(USUBJID, LBSEQ) %>%
-  filter(n() > 1) %>%
+  dplyr::filter(n() > 1) %>%
   ungroup()
 
 if (nrow(lb_seq_check) > 0) {
@@ -566,9 +574,9 @@ dm_check <- dm %>%
   select(USUBJID, pdl1_status, egfr_status, alk_status, kras_status)
 
 lb_check_pdl1 <- lb %>%
-  filter(LBTESTCD == "PDL1SUM") %>%
+  dplyr::filter(LBTESTCD == "PDL1SUM") %>%
   left_join(dm_check, by = "USUBJID") %>%
-  filter(
+  dplyr::filter(
     (pdl1_status == "HIGH" & LBORRES != "HIGH" & LBORRES != "Not Stated") |
     (pdl1_status == "LOW" & LBORRES != "LOW" & LBORRES != "Not Stated") |
     (pdl1_status == "NEGATIVE" & LBORRES != "NEGATIVE" & LBORRES != "Not Stated")
@@ -581,9 +589,9 @@ if (nrow(lb_check_pdl1) > 0) {
 }
 
 lb_check_egfr <- lb %>%
-  filter(LBTESTCD == "EGFR") %>%
+  dplyr::filter(LBTESTCD == "EGFR") %>%
   left_join(dm_check, by = "USUBJID") %>%
-  filter(
+  dplyr::filter(
     (egfr_status == "ALTERED" & LBORRES != "ALTERED") |
     (egfr_status == "NOT ALTERED" & LBORRES == "ALTERED")
   )
@@ -595,9 +603,9 @@ if (nrow(lb_check_egfr) > 0) {
 }
 
 lb_check_alk <- lb %>%
-  filter(LBTESTCD == "ALK") %>%
+  dplyr::filter(LBTESTCD == "ALK") %>%
   left_join(dm_check, by = "USUBJID") %>%
-  filter(
+  dplyr::filter(
     (alk_status == "ALTERED" & LBORRES != "ALTERED") |
     (alk_status == "NOT ALTERED" & LBORRES == "ALTERED")
   )
@@ -609,9 +617,9 @@ if (nrow(lb_check_alk) > 0) {
 }
 
 lb_check_kras <- lb %>%
-  filter(LBTESTCD == "KRAS") %>%
+  dplyr::filter(LBTESTCD == "KRAS") %>%
   left_join(dm_check, by = "USUBJID") %>%
-  filter(
+  dplyr::filter(
     (kras_status == "ALTERED" & LBORRES != "ALTERED") |
     (kras_status == "NOT ALTERED" & LBORRES == "ALTERED")
   )
@@ -624,8 +632,8 @@ if (nrow(lb_check_kras) > 0) {
 
 # All clinical lab values within eligibility ranges
 lb_clin_check <- lb %>%
-  filter(VISIT == "BASELINE", LBCAT == "BASELINE") %>%
-  filter(LBTESTCD %in% c("ANC", "HEMOGL", "PLATELT", "BILIRUB", "SCREAT")) %>%
+  dplyr::filter(VISIT == "BASELINE", LBCAT == "BASELINE") %>%
+  dplyr::filter(LBTESTCD %in% c("ANC", "HEMOGL", "PLATELT", "BILIRUB", "SCREAT")) %>%
   mutate(
     in_range = case_when(
       LBTESTCD == "ANC" & LBSTRESN >= 1.5 ~ TRUE,
@@ -636,7 +644,7 @@ lb_clin_check <- lb %>%
       TRUE ~ FALSE
     )
   ) %>%
-  filter(!in_range)
+  dplyr::filter(!in_range)
 
 if (nrow(lb_clin_check) > 0) {
   warning(
@@ -652,9 +660,47 @@ message("Total records: ", nrow(lb))
 message("  Clinical labs: ", sum(lb$LBCAT == "BASELINE" & lb$LBMETHOD == "STANDARD CLINICAL", na.rm = TRUE))
 message("  Genomic tests: ", sum(lb$LBCAT == "BASELINE" & is.na(lb$LBMETHOD)))
 
+# --- Apply variable labels and types -----------------------------------------
+lb_meta <- tibble(
+  variable = c(
+    "STUDYID", "DOMAIN", "USUBJID", "LBSEQ", "LBTESTCD", "LBTEST", "LBCAT",
+    "LBORRES", "LBORRESU", "LBSTRESC", "LBSTRESN", "LBSTRESU", "LBBLFL",
+    "LBNAM", "LBSPEC", "LBMETHOD", "LBDTC", "VISIT"
+  ),
+  label = c(
+    "Study Identifier",
+    "Domain Abbreviation",
+    "Unique Subject Identifier",
+    "Sequence Number",
+    "Lab Test or Examination Short Name",
+    "Lab Test or Examination Name",
+    "Category for Lab Test",
+    "Result or Finding in Original Units",
+    "Original Units",
+    "Character Result/Finding in Std Format",
+    "Numeric Result/Finding in Standard Units",
+    "Standard Units",
+    "Baseline Flag",
+    "Laboratory Name",
+    "Specimen Type",
+    "Method of Lab Test",
+    "Date/Time of Specimen Collection",
+    "Visit Name"
+  ),
+  type = c(
+    "character", "character", "character", "numeric", "character", "character", "character",
+    "character", "character", "character", "numeric",  "character", "character",
+    "character", "character", "character", "character", "character"
+  )
+)
+
+lb_xpt <- lb %>%
+  xportr_label(lb_meta, domain = "LB") %>%
+  xportr_type(lb_meta, domain = "LB")
+
 # --- Save outputs ------------------------------------------------------------
-saveRDS(lb, "output-data/sdtm/lb.rds")
-write_xpt(lb, "output-data/sdtm/lb.xpt", version = 5)
+saveRDS(lb_xpt, "output-data/sdtm/lb.rds")
+haven::write_xpt(lb_xpt, "output-data/sdtm/lb.xpt", version = 5)
 
 message("\n✓ LB written to:")
 message("  output-data/sdtm/lb.rds")

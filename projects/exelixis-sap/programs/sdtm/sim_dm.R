@@ -157,7 +157,7 @@ race <- sample(
     "ASIAN",
     "AMERICAN INDIAN OR ALASKA NATIVE",
     "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER",
-    "MULTIPLE",
+    "OTHER",
     "NOT REPORTED",
     "UNKNOWN"
   ),
@@ -246,6 +246,9 @@ dm <- tibble(
   RACE     = race,
   ETHNIC   = ethnic,
   ACTARMCD = actarmcd,
+  # ARMCD/ARM: planned arm — single-arm study, matches ACTARMCD/ACTARM
+  ARMCD    = "A",
+  ARM      = "Cabozantinib + Nivolumab",
   COUNTRY  = "USA",
   # Latent variables (downstream use only — not exported to XPT)
   bor             = bor,
@@ -411,7 +414,7 @@ cdisc_vars <- c(
   "STUDYID", "DOMAIN", "USUBJID", "SUBJID",
   "RFSTDTC", "RFENDTC", "RFICDTC", "DTHDTC", "DTHFL",
   "SITEID", "BRTHDTC", "AGE", "AGEU",
-  "SEX", "RACE", "ETHNIC", "ACTARMCD", "COUNTRY"
+  "SEX", "RACE", "ETHNIC", "ARMCD", "ARM", "ACTARMCD", "COUNTRY"
 )
 
 dm_meta <- tibble(
@@ -433,6 +436,8 @@ dm_meta <- tibble(
     "Sex",
     "Race",
     "Ethnicity",
+    "Planned Arm Code",
+    "Description of Planned Arm",
     "Actual Arm Code",
     "Country"
   ),

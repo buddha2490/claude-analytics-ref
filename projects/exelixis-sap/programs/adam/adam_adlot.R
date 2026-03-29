@@ -30,11 +30,11 @@ library(xportr)
 
 # --- Read source data --------------------------------------------------------
 
-dm <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/dm.xpt")
-ex <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/ex.xpt")
-cm <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/cm.xpt")
-ec <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/ec.xpt")
-ds <- haven::read_xpt("projects/exelixis-sap/output-data/sdtm/ds.xpt")
+dm <- haven::read_xpt("output-data/sdtm/dm.xpt")
+ex <- haven::read_xpt("output-data/sdtm/ex.xpt")
+cm <- haven::read_xpt("output-data/sdtm/cm.xpt")
+ec <- haven::read_xpt("output-data/sdtm/ec.xpt")
+ds <- haven::read_xpt("output-data/sdtm/ds.xpt")
 
 # --- Data Structure Exploration (Step 4 checkpoint) -------------------------
 
@@ -525,12 +525,12 @@ adlot <- adlot %>%
   xportr_type(metadata = adlot_meta, domain = "ADLOT")
 
 # Save dataset
-if (!dir.exists("projects/exelixis-sap/output-data/adam")) {
-  dir.create("projects/exelixis-sap/output-data/adam", recursive = TRUE)
+if (!dir.exists("output-data/adam")) {
+  dir.create("output-data/adam", recursive = TRUE)
 }
-haven::write_xpt(adlot, "projects/exelixis-sap/output-data/adam/adlot.xpt")
-saveRDS(adlot, "projects/exelixis-sap/output-data/adam/adlot.rds")
+haven::write_xpt(adlot, "output-data/adam/adlot.xpt")
+saveRDS(adlot, "output-data/adam/adlot.rds")
 
-message("\n✓ ADLOT dataset written to: projects/exelixis-sap/output-data/adam/adlot.xpt")
-message("✓ ADLOT dataset written to: projects/exelixis-sap/output-data/adam/adlot.rds")
+message("\n✓ ADLOT dataset written to: output-data/adam/adlot.xpt")
+message("✓ ADLOT dataset written to: output-data/adam/adlot.rds")
 message("✓ Program execution complete")

@@ -172,9 +172,9 @@ qs_list <- purrr::map(seq_len(n_subj), function(i) {
     QSDTC    = dtc
   )
 
-  # Stack and assign QSSEQ 1–17
+  # Stack and assign QSSEQ 1–17 (integer per SDTM-IG)
   dplyr::bind_rows(cci_rows, ecog_row, smoke_row, sc_rows) %>%
-    dplyr::mutate(QSSEQ = dplyr::row_number())
+    dplyr::mutate(QSSEQ = as.integer(dplyr::row_number()))
 })
 
 qs_raw <- dplyr::bind_rows(qs_list) %>%
@@ -205,7 +205,8 @@ qs_xpt <- qs_raw %>%
   xportr_type(
     metadata = tibble::tibble(
       variable = names(qs_labels),
-      type     = rep("character", length(qs_labels))
+      # QSSEQ must be numeric (integer) per SDTM-IG; all others character
+      type     = ifelse(names(qs_labels) == "QSSEQ", "numeric", "character")
     ),
     domain = "QS"
   )
