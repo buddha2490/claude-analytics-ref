@@ -44,6 +44,115 @@ When a plan file is referenced (or exists in `plans/` for the current feature):
 3. If the plan specifies design decisions, follow them — do not redesign
 4. If you discover the plan is incomplete or wrong, flag it to the user rather than deviating silently
 
+**Memory Awareness:**
+
+Before starting implementation for a study, check for study-specific memories that may contain relevant learnings:
+
+1. **Check memory index:** Read `projects/<study-id>/.claude/agent-memory/MEMORY.md`
+   - For NPM-008: `projects/exelixis-sap/.claude/agent-memory/MEMORY.md`
+
+2. **Load relevant memories:** If the index lists memories related to your task:
+   - Biomarker derivations? → Check reference memories for terminology patterns
+   - Complex algorithms? → Check project memories for lessons learned
+   - Encoding/format issues? → Check feedback memories for known gotchas
+
+3. **Query by pattern:** Scan memory descriptions for keywords matching your task:
+   - Implementing LoT? → Look for "lot", "algorithm", "therapy"
+   - Working with biomarkers? → Look for "biomarker", "mutation", "LB"
+   - Writing XPT files? → Look for "xpt", "encoding", "flags"
+
+4. **Apply learnings:** When a memory applies to your current task:
+   - Follow the guidance in "How to apply" section
+   - Reference the memory in your dev log (e.g., "Using biomarker pattern from npm008_biomarker_terminology.md")
+   - If the memory prevents an error, note it: "Memory alert: checking 'NOT ALTERED' before 'ALTERED' to avoid substring bug"
+
+### When to Read Memories
+
+**ALWAYS check memories when:**
+- Starting a new dataset in a wave (especially if similar to previous datasets)
+- Implementing complex derivations (LoT, response, time-to-event)
+- Working with study-specific terminology or controlled terms
+- After receiving feedback to "check what we learned before"
+
+**Example workflow:**
+
+```
+User requests: "Implement ADRS with response parameters"
+
+Before writing code:
+1. Read plan for ADRS specifications
+2. Check projects/exelixis-sap/.claude/agent-memory/MEMORY.md
+3. Find: npm008_biomarker_terminology.md (related to response criteria)
+4. Read memory to understand ALTERED/NOT ALTERED pattern
+5. Implement response derivations using correct terminology
+6. Note in dev log: "Applied biomarker terminology from memory"
+```
+
+### Memory Update During Implementation
+
+If you discover new patterns or corrections during implementation:
+- Note them in your dev log for the reviewer
+- The reviewer will decide whether to save them as memories
+- Do not create memories yourself — focus on implementation
+
+**Step 4 Mandatory Checkpoint (ADaM Programs):**
+
+When implementing ADaM derivation programs, you MUST complete a data contract validation checkpoint at Step 4 before proceeding to derivations. This is a HARD REQUIREMENT — you cannot proceed to Step 5 (Implement Derivations) without completing this checkpoint.
+
+**Checkpoint procedure:**
+
+1. **List all columns** in each source domain after loading the data:
+   ```r
+   # --- Data Structure Exploration ---
+   message("MH columns: ", paste(names(mh), collapse=", "))
+   message("EX columns: ", paste(names(ex), collapse=", "))
+   # Repeat for each domain used
+   ```
+
+2. **Extract plan expectations** from the "Source variables" tables in the plan document
+
+3. **Execute validation code** that checks for missing or mismatched variables:
+   ```r
+   # --- Data Contract Validation ---
+   # Expected variables from plan Section X.X
+   plan_vars_mh <- c("USUBJID", "MHDTC", "MHTERM", "MHCAT")
+   actual_vars_mh <- names(mh)
+
+   missing_vars <- setdiff(plan_vars_mh, actual_vars_mh)
+   extra_vars <- setdiff(actual_vars_mh, plan_vars_mh)
+
+   if (length(missing_vars) > 0) {
+     stop(
+       "Plan lists variables not found in MH: ", paste(missing_vars, collapse=", "),
+       "\nActual MH variables: ", paste(actual_vars_mh, collapse=", "),
+       "\nREVISIT: Update plan or identify alternative variables (e.g., MHSTDTC vs MHDTC)",
+       call. = FALSE
+     )
+   }
+
+   message("✓ Data contract OK (MH): All ", length(plan_vars_mh), " expected variables found")
+   ```
+
+4. **Flag mismatches** with actionable error messages:
+   - If critical variables are missing: STOP execution with explicit guidance
+   - Suggest alternative variables when applicable (e.g., "MHSTDTC" when "MHDTC" expected)
+   - Include the full list of actual column names in the error message
+
+5. **Document validation** in dev log output:
+   - Each domain must produce a "✓ Data contract OK" message
+   - This confirms the checkpoint was completed before derivations began
+
+**Enforcement:**
+
+- This checkpoint is MANDATORY for all ADaM programs
+- You must execute the validation code and observe the output before writing derivation logic
+- If validation fails, you must STOP and report the mismatch — do not attempt to proceed with derivations
+- The dev log must contain "Data contract OK" confirmation messages for each source domain
+
+**Why this matters:**
+
+This checkpoint prevents the MHDTC vs MHSTDTC type errors that occurred in the first iteration, where the plan listed variables that did not exist in the actual data. By validating data structure before coding derivations, you catch mismatches immediately rather than discovering them through trial-and-error execution.
+
 **Quality Assurance:**
 - Validate data types and structures after transformations
 - Check for NA handling appropriateness in clinical contexts
