@@ -334,7 +334,9 @@ haven::write_xpt(
   "projects/exelixis-sap/output-data/adam/adrs.xpt",
   version = 5
 )
+saveRDS(adrs, "projects/exelixis-sap/output-data/adam/adrs.rds")
 
 message("\n=== Step 8: Save Complete ===")
 message("Dataset saved to: projects/exelixis-sap/output-data/adam/adrs.xpt")
+message("Dataset saved to: projects/exelixis-sap/output-data/adam/adrs.rds")
 message("Program complete: ", Sys.time())

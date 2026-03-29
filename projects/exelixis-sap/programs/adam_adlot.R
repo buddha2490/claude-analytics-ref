@@ -529,6 +529,8 @@ if (!dir.exists("projects/exelixis-sap/output-data/adam")) {
   dir.create("projects/exelixis-sap/output-data/adam", recursive = TRUE)
 }
 haven::write_xpt(adlot, "projects/exelixis-sap/output-data/adam/adlot.xpt")
+saveRDS(adlot, "projects/exelixis-sap/output-data/adam/adlot.rds")
 
 message("\n✓ ADLOT dataset written to: projects/exelixis-sap/output-data/adam/adlot.xpt")
+message("✓ ADLOT dataset written to: projects/exelixis-sap/output-data/adam/adlot.rds")
 message("✓ Program execution complete")

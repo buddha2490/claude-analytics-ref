@@ -419,5 +419,7 @@ adtte %>%
 
 # --- Save dataset ------------------------------------------------------------
 haven::write_xpt(adtte, "projects/exelixis-sap/output-data/adam/adtte.xpt", version = 5)
+saveRDS(adtte, "projects/exelixis-sap/output-data/adam/adtte.rds")
 message("\nDataset saved to: projects/exelixis-sap/output-data/adam/adtte.xpt")
+message("Dataset saved to: projects/exelixis-sap/output-data/adam/adtte.rds")
 message("Program complete.")

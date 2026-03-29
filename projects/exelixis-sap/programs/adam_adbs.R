@@ -210,6 +210,8 @@ message("\n✓ Validation complete")
 # --- Save dataset -----------------------------------------------------------
 # Write to XPT format
 write_xpt(adbs, "projects/exelixis-sap/output-data/adam/adbs.xpt")
+saveRDS(adbs, "projects/exelixis-sap/output-data/adam/adbs.rds")
 
 message("\n✓ ADBS dataset saved to: projects/exelixis-sap/output-data/adam/adbs.xpt")
+message("✓ ADBS dataset saved to: projects/exelixis-sap/output-data/adam/adbs.rds")
 message("Final dimensions: ", nrow(adbs), " rows × ", ncol(adbs), " columns")

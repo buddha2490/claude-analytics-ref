@@ -292,4 +292,6 @@ if (!dir.exists(output_dir)) {
 }
 
 haven::write_xpt(adae, file.path(output_dir, "adae.xpt"))
+saveRDS(adae, file.path(output_dir, "adae.rds"))
 message("\nADAE saved to: ", file.path(output_dir, "adae.xpt"))
+message("ADAE saved to: ", file.path(output_dir, "adae.rds"))

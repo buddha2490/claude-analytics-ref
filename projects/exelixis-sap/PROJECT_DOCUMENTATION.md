@@ -489,7 +489,9 @@ result <- run_between_wave_checks(
 cat("Wave 2 Verdict:", result$verdict, "\n")
 ```
 
-**Output:** All 6 datasets written to `output-data/adam/*.xpt`
+**Output:** All 6 datasets written to `output-data/adam/` in both formats:
+- `*.xpt` — CDISC-compliant transport format for regulatory submission
+- `*.rds` — Native R format for faster loading in analysis workflows
 
 ---
 
@@ -510,6 +512,7 @@ cat("Wave 2 Verdict:", result$verdict, "\n")
 - One record per subject (ADSL standard)
 - Variable labels required (applied via `xportr`)
 - Numeric dates: SAS date values via `as.numeric(as.Date(...))`
+- **Dual-format output:** All datasets saved as both `.xpt` (CDISC compliance) and `.rds` (R native format)
 
 ### Code Quality Standards
 
@@ -618,7 +621,7 @@ type: feedback | project | reference
 
 ### Data
 - `output-data/sdtm/` — 19 SDTM domains (XPT format)
-- `output-data/adam/` — 6 ADaM datasets (XPT format)
+- `output-data/adam/` — 6 ADaM datasets (XPT + RDS formats)
 - `data-profiles/` — Domain frequency tables (LB, MH, QS)
 - `test-data/` — Test fixtures
 

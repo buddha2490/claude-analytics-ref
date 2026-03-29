@@ -690,7 +690,9 @@ adsl_final <- adsl_final %>%
 # --- Write output dataset ----------------------------------------------------
 
 haven::write_xpt(adsl_final, "projects/exelixis-sap/output-data/adam/adsl.xpt")
+saveRDS(adsl_final, "projects/exelixis-sap/output-data/adam/adsl.rds")
 message("\n✓ ADSL dataset written to: projects/exelixis-sap/output-data/adam/adsl.xpt")
+message("✓ ADSL dataset written to: projects/exelixis-sap/output-data/adam/adsl.rds")
 
 # --- Validation checks -------------------------------------------------------
 

@@ -642,9 +642,14 @@ stopifnot(all(<dataset>$USUBJID %in% dm$USUBJID))
 ### Step 8: Save Final Program and Dataset
 
 ```r
-# Save dataset
-haven::write_xpt(<dataset>, "projects/exelixis-sap/output-data/<dataset>.xpt")
+# Save dataset in both formats
+haven::write_xpt(<dataset>, "projects/exelixis-sap/output-data/adam/<dataset>.xpt")
+saveRDS(<dataset>, "projects/exelixis-sap/output-data/adam/<dataset>.rds")
 ```
+
+**IMPORTANT:** All datasets must be saved in BOTH formats:
+- **XPT:** For CDISC compliance and regulatory submission
+- **RDS:** For faster loading in R analysis workflows
 
 Save the final R program to: `projects/exelixis-sap/programs/adam_<dataset>.R`
 Save the dev log to: `projects/exelixis-sap/logs_2026-03-29/dev_log_<dataset>_2026-03-29.md`
@@ -701,7 +706,7 @@ Check each item and record finding as BLOCKING / WARNING / NOTE:
 **Compliance:**
 - [ ] xportr labels applied to all variables
 - [ ] Variable names are uppercase, <= 8 characters
-- [ ] Dataset written with `haven::write_xpt()`
+- [ ] Dataset written with `haven::write_xpt()` AND `saveRDS()` (both formats required)
 - [ ] Comment header is complete and accurate
 
 **Code quality:**
@@ -1258,7 +1263,7 @@ Source data is in: projects/exelixis-sap/output-data/sdtm/ (SDTM XPT files) and 
 [If dependent on upstream ADaM]: Read <upstream>.xpt from projects/exelixis-sap/output-data/adam/
 
 Save program to: projects/exelixis-sap/programs/adam_<dataset>.R
-Save dataset to: projects/exelixis-sap/output-data/adam/<dataset>.xpt
+Save dataset to: projects/exelixis-sap/output-data/adam/<dataset>.xpt AND <dataset>.rds (both formats required)
 Save dev log to: projects/exelixis-sap/logs_2026-03-29/dev_log_<dataset>_2026-03-29.md
 ```
 
@@ -1296,12 +1301,18 @@ Save QC report to: qa_2026-03-29/qa_adam_<dataset>_2026-03-29.md
 | ADAE program | `projects/exelixis-sap/programs/adam_adae.R` | r-clinical-programmer |
 | ADTTE program | `projects/exelixis-sap/programs/adam_adtte.R` | r-clinical-programmer |
 | **Datasets** | | |
-| ADLOT | `projects/exelixis-sap/output-data/adam/adlot.xpt` | r-clinical-programmer |
-| ADBS | `projects/exelixis-sap/output-data/adam/adbs.xpt` | r-clinical-programmer |
-| ADSL | `projects/exelixis-sap/output-data/adam/adsl.xpt` | r-clinical-programmer |
-| ADRS | `projects/exelixis-sap/output-data/adam/adrs.xpt` | r-clinical-programmer |
-| ADAE | `projects/exelixis-sap/output-data/adam/adae.xpt` | r-clinical-programmer |
-| ADTTE | `projects/exelixis-sap/output-data/adam/adtte.xpt` | r-clinical-programmer |
+| ADLOT (XPT) | `projects/exelixis-sap/output-data/adam/adlot.xpt` | r-clinical-programmer |
+| ADLOT (RDS) | `projects/exelixis-sap/output-data/adam/adlot.rds` | r-clinical-programmer |
+| ADBS (XPT) | `projects/exelixis-sap/output-data/adam/adbs.xpt` | r-clinical-programmer |
+| ADBS (RDS) | `projects/exelixis-sap/output-data/adam/adbs.rds` | r-clinical-programmer |
+| ADSL (XPT) | `projects/exelixis-sap/output-data/adam/adsl.xpt` | r-clinical-programmer |
+| ADSL (RDS) | `projects/exelixis-sap/output-data/adam/adsl.rds` | r-clinical-programmer |
+| ADRS (XPT) | `projects/exelixis-sap/output-data/adam/adrs.xpt` | r-clinical-programmer |
+| ADRS (RDS) | `projects/exelixis-sap/output-data/adam/adrs.rds` | r-clinical-programmer |
+| ADAE (XPT) | `projects/exelixis-sap/output-data/adam/adae.xpt` | r-clinical-programmer |
+| ADAE (RDS) | `projects/exelixis-sap/output-data/adam/adae.rds` | r-clinical-programmer |
+| ADTTE (XPT) | `projects/exelixis-sap/output-data/adam/adtte.xpt` | r-clinical-programmer |
+| ADTTE (RDS) | `projects/exelixis-sap/output-data/adam/adtte.rds` | r-clinical-programmer |
 | **Dev Logs** | | |
 | ADLOT log | `projects/exelixis-sap/logs_2026-03-29/dev_log_adlot_2026-03-29.md` | r-clinical-programmer |
 | ADBS log | `projects/exelixis-sap/logs_2026-03-29/dev_log_adbs_2026-03-29.md` | r-clinical-programmer |
