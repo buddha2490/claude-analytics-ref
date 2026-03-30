@@ -12,3 +12,12 @@ renv/sandbox/
 # user-specific directories
 notes.md
 
+# projects folder - only track exelixis-sap
+projects/*
+!projects/exelixis-sap/
+
+# But ignore generated data and tests within tracked projects
+projects/*/output-data/
+projects/*/tests/
+projects/*/.DS_Store
+
