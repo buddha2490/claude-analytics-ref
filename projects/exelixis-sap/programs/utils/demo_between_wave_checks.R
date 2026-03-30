@@ -33,7 +33,7 @@ dm <- data.frame(
   USUBJID = sprintf("NPM-008-%03d", 1:6),
   AGE = c(65, 58, 72, 61, 69, 55),
   SEX = rep(c("M", "F"), 3),
-  stringsAsFactors = FALSE
+
 )
 write_xpt(dm, file.path(test_data_path, "dm.xpt"))
 message("Created DM: ", nrow(dm), " subjects")
@@ -46,7 +46,7 @@ adsl <- data.frame(
   TRTEDT = as.Date("2023-01-15") + 30 + 0:5,
   AGE = dm$AGE,
   SEX = dm$SEX,
-  stringsAsFactors = FALSE
+
 )
 write_xpt(adsl, file.path(test_data_path, "adsl.xpt"))
 message("Created ADSL: ", nrow(adsl), " subjects")
@@ -58,7 +58,7 @@ adae <- data.frame(
   AESTDT = as.Date(rep(adsl$TRTSDT, each = 2)) + c(0, 5),  # All on or after TRTSDT
   AETERM = rep(c("Nausea", "Fatigue"), 6),
   TRTEMFL = rep("Y", 12),
-  stringsAsFactors = FALSE
+
 )
 write_xpt(adae, file.path(test_data_path, "adae.xpt"))
 message("Created ADAE: ", nrow(adae), " records")
@@ -70,7 +70,7 @@ adrs <- data.frame(
   PARAMCD = rep(c("BOR", "CBOR"), 6),
   AVALC = c("CR", "PR", "PR", "SD", "SD", "PD",   # BOR values
              "CR", "PR", "PR", "SD", "SD", "PD"),  # CBOR values
-  stringsAsFactors = FALSE
+
 )
 write_xpt(adrs, file.path(test_data_path, "adrs.xpt"))
 message("Created ADRS: ", nrow(adrs), " records")
@@ -88,7 +88,7 @@ adtte <- data.frame(
   PARAMCD = rep("DOR", n_responders),
   AVAL = seq(30, by = 15, length.out = n_responders),  # Duration of response in days
   CNSR = rep(0, n_responders),
-  stringsAsFactors = FALSE
+
 )
 write_xpt(adtte, file.path(test_data_path, "adtte.xpt"))
 message("Created ADTTE: ", nrow(adtte), " records (", n_responders, " responders)")
@@ -130,7 +130,7 @@ adrs_flawed <- rbind(
     USUBJID = "NPM-008-001",
     PARAMCD = "BOR",
     AVALC = "SD",
-    stringsAsFactors = FALSE
+
   )
 )
 write_xpt(adrs_flawed, file.path(test_data_path, "adrs.xpt"))
@@ -145,7 +145,7 @@ adtte_flawed <- rbind(
     PARAMCD = "DOR",
     AVAL = 15,
     CNSR = 0,
-    stringsAsFactors = FALSE
+
   )
 )
 write_xpt(adtte_flawed, file.path(test_data_path, "adtte.xpt"))

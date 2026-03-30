@@ -114,7 +114,7 @@ check_required_vars <- function(domain_name, vars, dataset_type) {
       actual = "Missing",
       expected = paste(check_vars, collapse = ", "),
       suggested_fix = "Add the required variables with appropriate derivations",
-      stringsAsFactors = FALSE
+
     )
   }
 
@@ -136,7 +136,7 @@ check_naming_convention <- function(vars, domain_name, dataset_type) {
       actual = paste(non_upper, collapse = ", "),
       expected = paste(toupper(non_upper), collapse = ", "),
       suggested_fix = "Convert variable names to uppercase",
-      stringsAsFactors = FALSE
+
     )
   }
 
@@ -152,7 +152,7 @@ check_naming_convention <- function(vars, domain_name, dataset_type) {
         actual = paste0(long_vars, " (", nchar(long_vars), " chars)", collapse = "; "),
         expected = "≤8 characters",
         suggested_fix = "Shorten variable names or verify they are valid CDISC standard names",
-        stringsAsFactors = FALSE
+
       )
     }
   }
@@ -183,7 +183,7 @@ check_naming_convention <- function(vars, domain_name, dataset_type) {
         actual = paste(missing_prefix, collapse = ", "),
         expected = paste0("Variables prefixed with '", prefix, "'"),
         suggested_fix = "Verify these are valid CDISC standard variables without domain prefix",
-        stringsAsFactors = FALSE
+
       )
     }
   }
@@ -208,7 +208,7 @@ check_variable_types <- function(domain_data, vars) {
           actual = class(domain_data[[var]])[1],
           expected = "character",
           suggested_fix = paste0("Convert ", var, " to character with as.character()"),
-          stringsAsFactors = FALSE
+
         )
       }
     }
@@ -227,7 +227,7 @@ check_variable_types <- function(domain_data, vars) {
           actual = class(domain_data[[var]])[1],
           expected = "numeric or integer",
           suggested_fix = paste0("Convert ", var, " to numeric with as.numeric()"),
-          stringsAsFactors = FALSE
+
         )
       }
     }
@@ -249,7 +249,7 @@ check_variable_types <- function(domain_data, vars) {
             "Convert ", var, " to character: ",
             "mutate(", var, " = if_else(", var, ", 'Y', ''))"
           ),
-          stringsAsFactors = FALSE
+
         )
       }
     }
@@ -278,7 +278,7 @@ check_variable_labels <- function(domain_data, vars) {
       actual = "Empty label",
       expected = "Descriptive label",
       suggested_fix = "Add labels using attr(df$VAR, 'label') <- 'Label text'",
-      stringsAsFactors = FALSE
+
     )
   }
 
@@ -311,7 +311,7 @@ check_controlled_terminology <- function(domain_data, vars) {
           suggested_fix = paste0(
             "Remap invalid values to valid CDISC CT values for ", var
           ),
-          stringsAsFactors = FALSE
+
         )
       }
     }
@@ -339,7 +339,7 @@ check_controlled_terminology <- function(domain_data, vars) {
           suggested_fix = paste0(
             "Recode ", var, " to use 'Y' for TRUE and '' for FALSE"
           ),
-          stringsAsFactors = FALSE
+
         )
       }
     }
@@ -378,7 +378,7 @@ check_date_formats <- function(domain_data, vars) {
             actual = paste(head(invalid_dates, 5), collapse = ", "),
             expected = "YYYY-MM-DD or YYYY-MM-DDThh:mm:ss",
             suggested_fix = paste0("Reformat ", var, " to ISO 8601 standard"),
-            stringsAsFactors = FALSE
+
           )
         }
 
@@ -395,7 +395,7 @@ check_date_formats <- function(domain_data, vars) {
             actual = paste(head(partial_dates, 3), collapse = ", "),
             expected = "Full or partial ISO 8601 dates allowed",
             suggested_fix = "No action required - partial dates are valid per SDTM-IG",
-            stringsAsFactors = FALSE
+
           )
         }
       }
@@ -422,7 +422,7 @@ check_missing_values <- function(domain_data, vars, domain_name) {
         actual = paste0(n_missing, " missing values"),
         expected = "0 missing values",
         suggested_fix = "Investigate and fix missing USUBJID values",
-        stringsAsFactors = FALSE
+
       )
     }
   }
@@ -473,7 +473,7 @@ check_missing_values <- function(domain_data, vars, domain_name) {
           suggested_fix = paste0(
             "Review derivation logic for ", var, " - verify high missingness is expected"
           ),
-          stringsAsFactors = FALSE
+
         )
       }
     }
@@ -498,7 +498,7 @@ check_cross_domain <- function(sdtm_domains_list) {
         actual = "DM domain missing",
         expected = "DM domain present",
         suggested_fix = "Generate DM domain before other SDTM domains",
-        stringsAsFactors = FALSE
+
       )
     ))
   }
@@ -531,7 +531,7 @@ check_cross_domain <- function(sdtm_domains_list) {
         suggested_fix = paste0(
           "Ensure all subjects in ", domain_name, " exist in DM domain"
         ),
-        stringsAsFactors = FALSE
+
       )
     }
 
@@ -550,7 +550,7 @@ check_cross_domain <- function(sdtm_domains_list) {
         suggested_fix = paste0(
           "Ensure ", domain_name, " uses same STUDYID as DM"
         ),
-        stringsAsFactors = FALSE
+
       )
     }
   }
@@ -602,7 +602,7 @@ for (domain_name in names(all_domains)) {
       actual = character(),
       expected = character(),
       suggested_fix = character(),
-      stringsAsFactors = FALSE
+
     )
   }
 
@@ -629,7 +629,7 @@ for (domain_name in names(all_domains)) {
     warnings = n_warnings,
     notes = n_notes,
     status = status,
-    stringsAsFactors = FALSE
+
   )
 
   # Store detailed findings
@@ -661,7 +661,7 @@ if (length(cross_domain_findings) > 0) {
     warnings = cross_warnings,
     notes = 0L,
     status = if (cross_blocking > 0) "BLOCKING" else if (cross_warnings > 0) "WARNING" else "PASS",
-    stringsAsFactors = FALSE
+
   )
 }
 
@@ -673,7 +673,7 @@ summary_df <- bind_rows(summary_results)
 rag_queries_df <- data.frame(
   query = character(),
   result_summary = character(),
-  stringsAsFactors = FALSE
+
 )
 
 validation_findings <- list(

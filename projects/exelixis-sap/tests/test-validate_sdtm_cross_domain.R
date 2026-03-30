@@ -5,7 +5,7 @@ library(dplyr)
 library(withr)
 
 # Source the function
-source("/Users/briancarter/Rdata/claude-analytics-ref/projects/exelixis-sap/R/validate_sdtm_cross_domain.R")
+source("../R/validate_sdtm_cross_domain.R")
 
 # --- Helper: Create minimal valid domain datasets ---
 create_mock_domains <- function(n_subjects = 40) {
@@ -22,7 +22,7 @@ create_mock_domains <- function(n_subjects = 40) {
     DTHFL = rep("N", n_subjects),
     DTHDTC = rep(NA_character_, n_subjects),
     bor = sample(c("CR", "PR", "SD", "PD"), n_subjects, replace = TRUE),
-    stringsAsFactors = FALSE
+
   )
 
   # IE - Inclusion/Exclusion (10 per subject)
@@ -31,7 +31,7 @@ create_mock_domains <- function(n_subjects = 40) {
     DOMAIN = rep("IE", n_subjects * 10),
     USUBJID = rep(usubjids, each = 10),
     IESEQ = rep(1:10, n_subjects),
-    stringsAsFactors = FALSE
+
   )
 
   # Simple domains with one row per subject
@@ -47,7 +47,7 @@ create_mock_domains <- function(n_subjects = 40) {
       STUDYID = rep("NPM008", n_subjects),
       DOMAIN = rep(domain_code, n_subjects),
       USUBJID = usubjids,
-      stringsAsFactors = FALSE
+
     )
 
     # Add SEQ column if applicable
@@ -63,7 +63,7 @@ create_mock_domains <- function(n_subjects = 40) {
     DSSEQ = 1:n_subjects,
     DSDECOD = rep("COMPLETED", n_subjects),
     DSDTC = rep("2024-06-15", n_subjects),
-    stringsAsFactors = FALSE
+
   )
 
   # VS - Vital Signs (5 per subject)
@@ -73,7 +73,7 @@ create_mock_domains <- function(n_subjects = 40) {
     USUBJID = rep(usubjids, each = 5),
     VSSEQ = rep(1:5, n_subjects),
     VSDTC = rep("2024-02-01", n_subjects * 5),
-    stringsAsFactors = FALSE
+
   )
 
   # LB - Lab (10 per subject)
@@ -83,7 +83,7 @@ create_mock_domains <- function(n_subjects = 40) {
     USUBJID = rep(usubjids, each = 10),
     LBSEQ = rep(1:10, n_subjects),
     LBDTC = rep("2024-02-01", n_subjects * 10),
-    stringsAsFactors = FALSE
+
   )
 
   # BS - Biospecimen
@@ -93,7 +93,7 @@ create_mock_domains <- function(n_subjects = 40) {
     USUBJID = usubjids,
     BSSEQ = 1:n_subjects,
     BSREFID = sprintf("BS%04d", 1:n_subjects),
-    stringsAsFactors = FALSE
+
   )
 
   # TU - Tumor Identification (2 per subject)
@@ -103,7 +103,7 @@ create_mock_domains <- function(n_subjects = 40) {
     USUBJID = rep(usubjids, each = 2),
     TUSEQ = rep(1:2, n_subjects),
     TULNKID = sprintf("TU%03d", 1:(n_subjects * 2)),
-    stringsAsFactors = FALSE
+
   )
 
   # TR - Tumor Results (2 per subject, matching TU)
@@ -113,7 +113,7 @@ create_mock_domains <- function(n_subjects = 40) {
     USUBJID = rep(usubjids, each = 2),
     TRSEQ = rep(1:2, n_subjects),
     TULNKID = sprintf("TU%03d", 1:(n_subjects * 2)),
-    stringsAsFactors = FALSE
+
   )
 
   # RS - Response (1 per subject with BOR)
@@ -124,7 +124,7 @@ create_mock_domains <- function(n_subjects = 40) {
     RSSEQ = 1:n_subjects,
     RSTESTCD = rep("OVRLRESP", n_subjects),
     RSSTRESC = dm$bor,
-    stringsAsFactors = FALSE
+
   )
 
   # AE - Adverse Events (3 per subject)
@@ -134,7 +134,7 @@ create_mock_domains <- function(n_subjects = 40) {
     USUBJID = rep(usubjids, each = 3),
     AESEQ = rep(1:3, n_subjects),
     AESTDTC = rep("2024-02-15", n_subjects * 3),
-    stringsAsFactors = FALSE
+
   )
 
   # HO - Healthcare Encounters (1 per AE)
@@ -144,7 +144,7 @@ create_mock_domains <- function(n_subjects = 40) {
     USUBJID = rep(usubjids, each = 3),
     HOSEQ = rep(1:3, n_subjects),
     HOHNKID = rep(1:3, n_subjects),  # Links to AESEQ
-    stringsAsFactors = FALSE
+
   )
 
   domains

@@ -47,7 +47,7 @@ validate_sdtm_domain <- function(
     description = character(),
     result = character(),
     detail = character(),
-    stringsAsFactors = FALSE
+
   )
 
   # --- Universal Check U1: DOMAIN column matches domain_code ---
@@ -57,7 +57,7 @@ validate_sdtm_domain <- function(
       description = "DOMAIN column exists and matches domain_code",
       result = "FAIL",
       detail = "DOMAIN column not found",
-      stringsAsFactors = FALSE
+
     ))
   } else if (!all(domain_df$DOMAIN == domain_code, na.rm = TRUE)) {
     invalid_count <- sum(domain_df$DOMAIN != domain_code, na.rm = TRUE)
@@ -66,7 +66,7 @@ validate_sdtm_domain <- function(
       description = "DOMAIN column exists and matches domain_code",
       result = "FAIL",
       detail = sprintf("%d rows have DOMAIN != '%s'", invalid_count, domain_code),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     checks <- rbind(checks, data.frame(
@@ -74,7 +74,7 @@ validate_sdtm_domain <- function(
       description = "DOMAIN column exists and matches domain_code",
       result = "PASS",
       detail = "",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -85,7 +85,7 @@ validate_sdtm_domain <- function(
       description = "STUDYID is constant and equals NPM008",
       result = "FAIL",
       detail = "STUDYID column not found",
-      stringsAsFactors = FALSE
+
     ))
   } else {
     unique_studyids <- unique(domain_df$STUDYID)
@@ -95,7 +95,7 @@ validate_sdtm_domain <- function(
         description = "STUDYID is constant and equals NPM008",
         result = "FAIL",
         detail = sprintf("Found STUDYID values: %s", paste(unique_studyids, collapse = ", ")),
-        stringsAsFactors = FALSE
+
       ))
     } else {
       checks <- rbind(checks, data.frame(
@@ -103,7 +103,7 @@ validate_sdtm_domain <- function(
         description = "STUDYID is constant and equals NPM008",
         result = "PASS",
         detail = "",
-        stringsAsFactors = FALSE
+
       ))
     }
   }
@@ -115,7 +115,7 @@ validate_sdtm_domain <- function(
       description = "USUBJID matches regex ^NPM008-\\\\d{2}-[A-Z]\\\\d{4}$",
       result = "FAIL",
       detail = "USUBJID column not found",
-      stringsAsFactors = FALSE
+
     ))
   } else {
     invalid_usubjid <- domain_df$USUBJID[!stringr::str_detect(domain_df$USUBJID, "^NPM008-\\d{2}-[A-Z]\\d{4}$")]
@@ -127,7 +127,7 @@ validate_sdtm_domain <- function(
         detail = sprintf("%d invalid USUBJID(s): %s",
                         length(invalid_usubjid),
                         paste(head(invalid_usubjid, 3), collapse = ", ")),
-        stringsAsFactors = FALSE
+
       ))
     } else {
       checks <- rbind(checks, data.frame(
@@ -135,7 +135,7 @@ validate_sdtm_domain <- function(
         description = "USUBJID matches regex ^NPM008-\\\\d{2}-[A-Z]\\\\d{4}$",
         result = "PASS",
         detail = "",
-        stringsAsFactors = FALSE
+
       ))
     }
   }
@@ -156,7 +156,7 @@ validate_sdtm_domain <- function(
         detail = sprintf("%d USUBJID(s) not in DM: %s",
                         length(missing_usubjids),
                         paste(head(missing_usubjids, 3), collapse = ", ")),
-        stringsAsFactors = FALSE
+
       ))
     } else {
       checks <- rbind(checks, data.frame(
@@ -164,7 +164,7 @@ validate_sdtm_domain <- function(
         description = "All USUBJIDs exist in DM reference",
         result = "PASS",
         detail = "",
-        stringsAsFactors = FALSE
+
       ))
     }
   } else {
@@ -173,7 +173,7 @@ validate_sdtm_domain <- function(
       description = "All USUBJIDs exist in DM reference",
       result = "FAIL",
       detail = "USUBJID column missing from domain_df or dm_ref",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -188,7 +188,7 @@ validate_sdtm_domain <- function(
           description = sprintf("%s is unique integer within each USUBJID", seq_col),
           result = "FAIL",
           detail = sprintf("%s is not numeric", seq_col),
-          stringsAsFactors = FALSE
+
         ))
       } else {
         # Check for uniqueness within USUBJID
@@ -208,7 +208,7 @@ validate_sdtm_domain <- function(
             result = "FAIL",
             detail = sprintf("%d USUBJID(s) have duplicate %s values",
                             nrow(dup_check), seq_col),
-            stringsAsFactors = FALSE
+
           ))
         } else {
           checks <- rbind(checks, data.frame(
@@ -216,7 +216,7 @@ validate_sdtm_domain <- function(
             description = sprintf("%s is unique integer within each USUBJID", seq_col),
             result = "PASS",
             detail = "",
-            stringsAsFactors = FALSE
+
           ))
         }
       }
@@ -226,7 +226,7 @@ validate_sdtm_domain <- function(
         description = sprintf("%s is unique integer within each USUBJID", seq_col),
         result = "FAIL",
         detail = "USUBJID column not found",
-        stringsAsFactors = FALSE
+
       ))
     }
   } else {
@@ -236,7 +236,7 @@ validate_sdtm_domain <- function(
       description = sprintf("%s is unique integer within each USUBJID", seq_col),
       result = "PASS",
       detail = sprintf("%s column not present (acceptable)", seq_col),
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -251,7 +251,7 @@ validate_sdtm_domain <- function(
       result = "FAIL",
       detail = sprintf("Missing required columns: %s",
                       paste(setdiff(required_vars, present_required), collapse = ", ")),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     na_counts <- sapply(present_required, function(var) sum(is.na(domain_df[[var]])))
@@ -262,7 +262,7 @@ validate_sdtm_domain <- function(
         description = "No NA in required variables (STUDYID, DOMAIN, USUBJID)",
         result = "FAIL",
         detail = sprintf("NA values found in: %s", paste(vars_with_na, collapse = ", ")),
-        stringsAsFactors = FALSE
+
       ))
     } else {
       checks <- rbind(checks, data.frame(
@@ -270,7 +270,7 @@ validate_sdtm_domain <- function(
         description = "No NA in required variables (STUDYID, DOMAIN, USUBJID)",
         result = "PASS",
         detail = "",
-        stringsAsFactors = FALSE
+
       ))
     }
   }
@@ -302,7 +302,7 @@ validate_sdtm_domain <- function(
         description = "All DTC columns match ISO 8601 format (YYYY-MM-DD)",
         result = "FAIL",
         detail = detail_msg,
-        stringsAsFactors = FALSE
+
       ))
     } else {
       checks <- rbind(checks, data.frame(
@@ -310,7 +310,7 @@ validate_sdtm_domain <- function(
         description = "All DTC columns match ISO 8601 format (YYYY-MM-DD)",
         result = "PASS",
         detail = sprintf("Checked %d DTC column(s)", length(dtc_cols)),
-        stringsAsFactors = FALSE
+
       ))
     }
   } else {
@@ -319,7 +319,7 @@ validate_sdtm_domain <- function(
       description = "All DTC columns match ISO 8601 format (YYYY-MM-DD)",
       result = "PASS",
       detail = "No DTC columns present",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -339,7 +339,7 @@ validate_sdtm_domain <- function(
       description = "Row count within expected range",
       result = "WARNING",
       detail = sprintf("Actual: %d, Expected: [%d, %d]", actual_rows, min_rows, max_rows),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     checks <- rbind(checks, data.frame(
@@ -347,7 +347,7 @@ validate_sdtm_domain <- function(
       description = "Row count within expected range",
       result = "PASS",
       detail = sprintf("Actual: %d, Expected: [%d, %d]", actual_rows, min_rows, max_rows),
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -359,7 +359,7 @@ validate_sdtm_domain <- function(
       description = "No fully duplicate rows",
       result = "FAIL",
       detail = sprintf("%d duplicate row(s) found", dup_count),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     checks <- rbind(checks, data.frame(
@@ -367,7 +367,7 @@ validate_sdtm_domain <- function(
       description = "No fully duplicate rows",
       result = "PASS",
       detail = "",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -398,7 +398,7 @@ validate_sdtm_domain <- function(
         description = "CT values validated against reference",
         result = "FAIL",
         detail = detail_msg,
-        stringsAsFactors = FALSE
+
       ))
     } else {
       checks <- rbind(checks, data.frame(
@@ -406,7 +406,7 @@ validate_sdtm_domain <- function(
         description = "CT values validated against reference",
         result = "PASS",
         detail = sprintf("Checked %d variable(s)", length(ct_reference)),
-        stringsAsFactors = FALSE
+
       ))
     }
   } else {
@@ -415,7 +415,7 @@ validate_sdtm_domain <- function(
       description = "CT values validated against reference",
       result = "PASS",
       detail = "No CT reference provided",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -433,7 +433,7 @@ validate_sdtm_domain <- function(
         description = check$description,
         result = check$result,
         detail = check$detail,
-        stringsAsFactors = FALSE
+
       ))
     }
   }

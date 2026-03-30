@@ -11,14 +11,14 @@ test_that("validate_referential_integrity detects all orphan records", {
   parent <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-003"),
     STUDYID = "NPM-008",
-    stringsAsFactors = FALSE
+
   )
 
   # Create child dataset with one orphan
   child <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-999"),
     AVAL = c(1, 2, 3),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_referential_integrity(
@@ -39,13 +39,13 @@ test_that("validate_referential_integrity passes with perfect integrity", {
   parent <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-003"),
     STUDYID = "NPM-008",
-    stringsAsFactors = FALSE
+
   )
 
   child <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     AVAL = c(1, 2),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_referential_integrity(
@@ -65,13 +65,13 @@ test_that("validate_referential_integrity handles multiple orphans", {
   parent <- data.frame(
     USUBJID = c("NPM-008-001"),
     STUDYID = "NPM-008",
-    stringsAsFactors = FALSE
+
   )
 
   child <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-003", "NPM-008-004"),
     AVAL = c(1, 2, 3, 4),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_referential_integrity(
@@ -91,7 +91,7 @@ test_that("validate_referential_integrity truncates long orphan lists", {
   parent <- data.frame(
     USUBJID = c("NPM-008-001"),
     STUDYID = "NPM-008",
-    stringsAsFactors = FALSE
+
   )
 
   # Create 15 orphans
@@ -99,7 +99,7 @@ test_that("validate_referential_integrity truncates long orphan lists", {
   child <- data.frame(
     USUBJID = c("NPM-008-001", orphan_ids),
     AVAL = seq_len(16),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_referential_integrity(
@@ -117,13 +117,13 @@ test_that("validate_referential_integrity errors on missing ID column", {
   parent <- data.frame(
     USUBJID = c("NPM-008-001"),
     STUDYID = "NPM-008",
-    stringsAsFactors = FALSE
+
   )
 
   child <- data.frame(
     SUBJECT_ID = c("NPM-008-001"),  # Wrong column name
     AVAL = 1,
-    stringsAsFactors = FALSE
+
   )
 
   expect_error(
@@ -150,13 +150,13 @@ test_that("validate_referential_integrity handles custom ID variable", {
   parent <- data.frame(
     SUBJID = c("001", "002", "003"),
     STUDYID = "NPM-008",
-    stringsAsFactors = FALSE
+
   )
 
   child <- data.frame(
     SUBJID = c("001", "999"),
     AVAL = c(1, 2),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_referential_integrity(

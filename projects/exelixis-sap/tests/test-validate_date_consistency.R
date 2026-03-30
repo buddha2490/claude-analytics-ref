@@ -11,7 +11,7 @@ test_that("validate_date_consistency detects TRTEMFL violations", {
   reference <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     TRTSDT = as.Date(c("2023-01-15", "2023-02-01")),
-    stringsAsFactors = FALSE
+
   )
 
   # Create event data with one violation
@@ -19,7 +19,7 @@ test_that("validate_date_consistency detects TRTEMFL violations", {
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-002"),
     AESTDT = as.Date(c("2023-01-20", "2023-01-15", "2023-02-05")),
     TRTEMFL = c("Y", "Y", "Y"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_date_consistency(
@@ -43,14 +43,14 @@ test_that("validate_date_consistency passes with all valid dates", {
   reference <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     TRTSDT = as.Date(c("2023-01-15", "2023-02-01")),
-    stringsAsFactors = FALSE
+
   )
 
   event <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     AESTDT = as.Date(c("2023-01-15", "2023-02-01")),  # On or after TRTSDT
     TRTEMFL = c("Y", "Y"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_date_consistency(
@@ -71,14 +71,14 @@ test_that("validate_date_consistency ignores non-flagged records", {
   reference <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     TRTSDT = as.Date(c("2023-01-15", "2023-02-01")),
-    stringsAsFactors = FALSE
+
   )
 
   event <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-002"),
     AESTDT = as.Date(c("2023-01-20", "2023-01-15", "2023-02-05")),
     TRTEMFL = c("Y", "N", "Y"),  # Middle record not flagged
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_date_consistency(
@@ -97,14 +97,14 @@ test_that("validate_date_consistency handles <= constraint", {
   reference <- data.frame(
     USUBJID = c("NPM-008-001"),
     ENDDT = as.Date("2023-12-31"),
-    stringsAsFactors = FALSE
+
   )
 
   event <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-001"),
     EVENTDT = as.Date(c("2023-12-30", "2024-01-05")),
     FLAG = c("Y", "Y"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_date_consistency(
@@ -125,14 +125,14 @@ test_that("validate_date_consistency returns PASS when no flagged records", {
   reference <- data.frame(
     USUBJID = c("NPM-008-001"),
     TRTSDT = as.Date("2023-01-15"),
-    stringsAsFactors = FALSE
+
   )
 
   event <- data.frame(
     USUBJID = c("NPM-008-001"),
     AESTDT = as.Date("2023-01-20"),
     TRTEMFL = c("N"),  # No flagged records
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_date_consistency(
@@ -193,14 +193,14 @@ test_that("validate_date_consistency supports custom flag values", {
   reference <- data.frame(
     USUBJID = c("NPM-008-001"),
     TRTSDT = as.Date("2023-01-15"),
-    stringsAsFactors = FALSE
+
   )
 
   event <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-001"),
     AESTDT = as.Date(c("2023-01-10", "2023-01-20")),
     FLAG = c("TRUE", "TRUE"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_date_consistency(
@@ -220,14 +220,14 @@ test_that("validate_date_consistency handles > constraint", {
   reference <- data.frame(
     USUBJID = c("NPM-008-001"),
     STARTDT = as.Date("2023-01-15"),
-    stringsAsFactors = FALSE
+
   )
 
   event <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-001"),
     EVENTDT = as.Date(c("2023-01-15", "2023-01-16")),
     FLAG = c("Y", "Y"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_date_consistency(

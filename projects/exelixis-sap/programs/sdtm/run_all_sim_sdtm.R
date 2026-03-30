@@ -23,12 +23,7 @@ SITES      <- c("01", "02", "03", "04", "05")
 
 set.seed(42)
 
-### Set relative path
-if (basename(getwd()) !=  "exelixis-sap") {
-
-  setwd("projects/exelixis-sap/")
-
-}
+source("projects/exelixis-sap/programs/sdtm/setup.R")
 
 # Load ct-reference data
 # build_ct_reference.R lives in R/ (the reusable functions directory) and 

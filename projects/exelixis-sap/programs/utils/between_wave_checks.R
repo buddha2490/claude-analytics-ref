@@ -202,7 +202,7 @@ run_between_wave_checks <- function(wave_number,
     verdict = sapply(checks, function(x) x$verdict),
     severity = sapply(checks, function(x) x$severity),
     message = sapply(checks, function(x) x$message),
-    stringsAsFactors = FALSE
+
   )
 
   # Count by verdict

@@ -29,7 +29,7 @@ validate_sdtm_cross_domain <- function(
     description = character(),
     result = character(),
     detail = character(),
-    stringsAsFactors = FALSE
+
   )
 
   # --- Expected domain list ---
@@ -53,7 +53,7 @@ validate_sdtm_cross_domain <- function(
       description = "All 18 XPT files exist in sdtm_dir",
       result = "FAIL",
       detail = sprintf("Missing files: %s", paste(missing_files, collapse = ", ")),
-      stringsAsFactors = FALSE
+
     ))
 
     # Cannot proceed without all files
@@ -79,7 +79,7 @@ validate_sdtm_cross_domain <- function(
       description = "All 18 XPT files exist in sdtm_dir",
       result = "PASS",
       detail = "All expected domain files present",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -119,7 +119,7 @@ validate_sdtm_cross_domain <- function(
       description = "Referential integrity: every USUBJID exists in DM",
       result = "FAIL",
       detail = paste(ref_integrity_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -128,7 +128,7 @@ validate_sdtm_cross_domain <- function(
       description = "Referential integrity: every USUBJID exists in DM",
       result = "PASS",
       detail = "All USUBJIDs across domains exist in DM",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -155,7 +155,7 @@ validate_sdtm_cross_domain <- function(
       description = "All domains have 40 distinct USUBJIDs",
       result = "FAIL",
       detail = paste(cardinality_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -164,7 +164,7 @@ validate_sdtm_cross_domain <- function(
       description = "All domains have 40 distinct USUBJIDs",
       result = "PASS",
       detail = "All domains contain all 40 subjects",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -214,7 +214,7 @@ validate_sdtm_cross_domain <- function(
       description = "Date coherence: no event dates before RFSTDTC (except MH, CM)",
       result = "FAIL",
       detail = paste(date_coherence_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -223,7 +223,7 @@ validate_sdtm_cross_domain <- function(
       description = "Date coherence: no event dates before RFSTDTC (except MH, CM)",
       result = "PASS",
       detail = "No events before study start",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -276,7 +276,7 @@ validate_sdtm_cross_domain <- function(
       description = "Date coherence: no event dates after DTHDTC for deceased",
       result = "FAIL",
       detail = paste(post_death_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -285,7 +285,7 @@ validate_sdtm_cross_domain <- function(
       description = "Date coherence: no event dates after DTHDTC for deceased",
       result = "PASS",
       detail = sprintf("Checked %d deceased subject(s)", nrow(deceased)),
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -317,7 +317,7 @@ validate_sdtm_cross_domain <- function(
       description = "Key linkage: TU.TULNKID ↔ TR.TULNKID (no orphans)",
       result = "FAIL",
       detail = paste(x5_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -326,7 +326,7 @@ validate_sdtm_cross_domain <- function(
       description = "Key linkage: TU.TULNKID ↔ TR.TULNKID (no orphans)",
       result = "PASS",
       detail = "All tumor identifiers linked correctly",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -361,7 +361,7 @@ validate_sdtm_cross_domain <- function(
       description = "Key linkage: AE.AESEQ ↔ HO.HOHNKID (no orphans)",
       result = "FAIL",
       detail = paste(x6_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -370,7 +370,7 @@ validate_sdtm_cross_domain <- function(
       description = "Key linkage: AE.AESEQ ↔ HO.HOHNKID (no orphans)",
       result = "PASS",
       detail = "All healthcare encounters linked to AEs",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -400,7 +400,7 @@ validate_sdtm_cross_domain <- function(
       description = "Key linkage: BS.BSREFID ↔ LB specimen dates",
       result = "WARNING",
       detail = paste(x7_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -409,7 +409,7 @@ validate_sdtm_cross_domain <- function(
       description = "Key linkage: BS.BSREFID ↔ LB specimen dates",
       result = "PASS",
       detail = "Biospecimen and lab data aligned",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -452,7 +452,7 @@ validate_sdtm_cross_domain <- function(
       description = "Outcome consistency: DS.DSDECOD='DEATH' iff DM.DTHFL='Y'",
       result = "FAIL",
       detail = paste(x8_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -461,7 +461,7 @@ validate_sdtm_cross_domain <- function(
       description = "Outcome consistency: DS.DSDECOD='DEATH' iff DM.DTHFL='Y'",
       result = "PASS",
       detail = "Death records consistent across DM and DS",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -490,7 +490,7 @@ validate_sdtm_cross_domain <- function(
       description = "Outcome consistency: DS.DSDTC matches DM.DTHDTC for deceased",
       result = "FAIL",
       detail = paste(x9_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -499,7 +499,7 @@ validate_sdtm_cross_domain <- function(
       description = "Outcome consistency: DS.DSDTC matches DM.DTHDTC for deceased",
       result = "PASS",
       detail = "Death dates consistent across domains",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -533,7 +533,7 @@ validate_sdtm_cross_domain <- function(
       description = "RECIST consistency: RS BOR matches DM latent BOR",
       result = "FAIL",
       detail = paste(x10_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -542,7 +542,7 @@ validate_sdtm_cross_domain <- function(
       description = "RECIST consistency: RS BOR matches DM latent BOR",
       result = "PASS",
       detail = "Best overall response consistent",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -578,7 +578,7 @@ validate_sdtm_cross_domain <- function(
       description = "Cardinality: domain row counts within expected ranges",
       result = "WARNING",
       detail = paste(x11_warns, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -587,7 +587,7 @@ validate_sdtm_cross_domain <- function(
       description = "Cardinality: domain row counts within expected ranges",
       result = "PASS",
       detail = "All checked domains have expected row counts",
-      stringsAsFactors = FALSE
+
     ))
   }
 
@@ -624,7 +624,7 @@ validate_sdtm_cross_domain <- function(
       description = "SEQ uniqueness: --SEQ unique per USUBJID within each domain",
       result = "FAIL",
       detail = paste(x12_fails, collapse = "; "),
-      stringsAsFactors = FALSE
+
     ))
   } else {
     findings <- rbind(findings, data.frame(
@@ -633,7 +633,7 @@ validate_sdtm_cross_domain <- function(
       description = "SEQ uniqueness: --SEQ unique per USUBJID within each domain",
       result = "PASS",
       detail = "All SEQ variables unique within subjects",
-      stringsAsFactors = FALSE
+
     ))
   }
 

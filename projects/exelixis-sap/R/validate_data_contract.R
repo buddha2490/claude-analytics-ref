@@ -53,7 +53,7 @@ validate_data_contract <- function(plan_path, sdtm_path, domains = NULL) {
         variable = character(),
         issue_type = character(),
         message = character(),
-        stringsAsFactors = FALSE
+
       ),
       report = "Data Contract Validation Report\n================================\n\nNo source variable tables found in plan.\n\nVERDICT: PASS (nothing to validate)\n",
       summary = integer()
@@ -79,7 +79,7 @@ validate_data_contract <- function(plan_path, sdtm_path, domains = NULL) {
         variable = NA_character_,
         issue_type = "missing_file",
         message = paste0("XPT file not found: ", xpt_file),
-        stringsAsFactors = FALSE
+
       )
       next
     }
@@ -93,7 +93,7 @@ validate_data_contract <- function(plan_path, sdtm_path, domains = NULL) {
           variable = NA_character_,
           issue_type = "read_error",
           message = paste0("Failed to read XPT: ", e$message),
-          stringsAsFactors = FALSE
+
         )
         return(NULL)
       }
@@ -117,7 +117,7 @@ validate_data_contract <- function(plan_path, sdtm_path, domains = NULL) {
             variable = var,
             issue_type = "missing_with_alternative",
             message = paste0("Variable not found, but alternative exists: ", alternative),
-            stringsAsFactors = FALSE
+
           )
         } else {
           issues[[length(issues) + 1]] <- data.frame(
@@ -125,7 +125,7 @@ validate_data_contract <- function(plan_path, sdtm_path, domains = NULL) {
             variable = var,
             issue_type = "missing",
             message = "Variable listed in plan but not found in data",
-            stringsAsFactors = FALSE
+
           )
         }
       }
@@ -140,7 +140,7 @@ validate_data_contract <- function(plan_path, sdtm_path, domains = NULL) {
         variable = paste(head(unexpected_vars, 3), collapse = ", "),
         issue_type = "info",
         message = paste0(length(unexpected_vars), " additional variables in data not mentioned in plan"),
-        stringsAsFactors = FALSE
+
       )
     }
   }
@@ -154,7 +154,7 @@ validate_data_contract <- function(plan_path, sdtm_path, domains = NULL) {
       variable = character(),
       issue_type = character(),
       message = character(),
-      stringsAsFactors = FALSE
+
     )
   }
 

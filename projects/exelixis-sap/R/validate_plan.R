@@ -119,9 +119,9 @@ validate_plan <- function(plan_path, data_path = NULL) {
   # Look for patterns indicating repeated derivations
   # Common patterns: multiple flag derivations, multiple mappings
   # Look for 5+ occurrences of "flag" or similar patterns
-  flag_count <- length(gregexpr("\\bflag\\b", plan_text, ignore.case = TRUE)[[1]])
-  biomarker_count <- length(gregexpr("\\bbiomarker\\b", plan_text, ignore.case = TRUE)[[1]])
-  comorbid_count <- length(gregexpr("\\bcomorbid", plan_text, ignore.case = TRUE)[[1]])
+  flag_count <- stringr::str_count(plan_text, stringr::regex("\\bflag\\b", ignore_case = TRUE))
+  biomarker_count <- stringr::str_count(plan_text, stringr::regex("\\bbiomarker\\b", ignore_case = TRUE))
+  comorbid_count <- stringr::str_count(plan_text, stringr::regex("\\bcomorbid", ignore_case = TRUE))
 
   # Detect repeated patterns (5+ mentions suggests repetition)
   has_repeated_pattern <- (flag_count >= 5) || (biomarker_count >= 3) || (comorbid_count >= 3)

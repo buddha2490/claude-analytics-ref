@@ -5,8 +5,8 @@ library(testthat)
 library(dplyr)
 
 # Source the functions
-source("/Users/briancarter/Rdata/claude-analytics-ref/projects/exelixis-sap/R/orchestrate_dataset_split.R")
-source("/Users/briancarter/Rdata/claude-analytics-ref/projects/exelixis-sap/R/merge_split_datasets.R")
+source("../R/orchestrate_dataset_split.R")
+source("../R/merge_split_datasets.R")
 
 
 # --- Test orchestrate_dataset_split() -----------------------------------------

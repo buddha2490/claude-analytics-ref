@@ -12,7 +12,7 @@ test_that("validate_cross_domain detects DOR/responder mismatch - extra DOR", {
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-003"),
     PARAMCD = c("BOR", "BOR", "BOR"),
     AVALC = c("CR", "PR", "SD"),
-    stringsAsFactors = FALSE
+
   )
 
   # ADTTE: 3 DOR records (one extra)
@@ -20,7 +20,7 @@ test_that("validate_cross_domain detects DOR/responder mismatch - extra DOR", {
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-003"),
     PARAMCD = c("DOR", "DOR", "DOR"),
     AVAL = c(30, 45, 60),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_cross_domain(
@@ -43,7 +43,7 @@ test_that("validate_cross_domain detects DOR/responder mismatch - missing DOR", 
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-003"),
     PARAMCD = c("BOR", "BOR", "BOR"),
     AVALC = c("CR", "PR", "PR"),
-    stringsAsFactors = FALSE
+
   )
 
   # ADTTE: 2 DOR records (one missing)
@@ -51,7 +51,7 @@ test_that("validate_cross_domain detects DOR/responder mismatch - missing DOR", 
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     PARAMCD = c("DOR", "DOR"),
     AVAL = c(30, 45),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_cross_domain(
@@ -73,7 +73,7 @@ test_that("validate_cross_domain passes with perfect DOR/responder match", {
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-003"),
     PARAMCD = c("BOR", "BOR", "BOR"),
     AVALC = c("CR", "PR", "SD"),
-    stringsAsFactors = FALSE
+
   )
 
   # ADTTE: 2 DOR records matching responders
@@ -81,7 +81,7 @@ test_that("validate_cross_domain passes with perfect DOR/responder match", {
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     PARAMCD = c("DOR", "DOR"),
     AVAL = c(30, 45),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_cross_domain(
@@ -104,7 +104,7 @@ test_that("validate_cross_domain handles both missing and extra DOR", {
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-003"),
     PARAMCD = c("BOR", "BOR", "BOR"),
     AVALC = c("CR", "PR", "PD"),
-    stringsAsFactors = FALSE
+
   )
 
   # ADTTE: DOR for 001 and 003 (missing 002, extra 003)
@@ -112,7 +112,7 @@ test_that("validate_cross_domain handles both missing and extra DOR", {
     USUBJID = c("NPM-008-001", "NPM-008-003"),
     PARAMCD = c("DOR", "DOR"),
     AVAL = c(30, 45),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_cross_domain(
@@ -134,7 +134,7 @@ test_that("validate_cross_domain handles no responders", {
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     PARAMCD = c("BOR", "BOR"),
     AVALC = c("SD", "PD"),
-    stringsAsFactors = FALSE
+
   )
 
   # ADTTE: No DOR records
@@ -142,7 +142,7 @@ test_that("validate_cross_domain handles no responders", {
     USUBJID = character(0),
     PARAMCD = character(0),
     AVAL = numeric(0),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_cross_domain(
@@ -162,14 +162,14 @@ test_that("validate_cross_domain supports custom response values", {
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     PARAMCD = c("BOR", "BOR"),
     AVALC = c("COMPLETE", "PARTIAL"),
-    stringsAsFactors = FALSE
+
   )
 
   adtte <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     PARAMCD = c("DOR", "DOR"),
     AVAL = c(30, 45),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_cross_domain(
@@ -187,14 +187,14 @@ test_that("validate_cross_domain supports custom parameter codes", {
     USUBJID = c("NPM-008-001"),
     PARAMCD = c("BESTRES"),
     AVALC = c("CR"),
-    stringsAsFactors = FALSE
+
   )
 
   adtte <- data.frame(
     USUBJID = c("NPM-008-001"),
     PARAMCD = c("DURATION"),
     AVAL = c(30),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_cross_domain(
@@ -231,14 +231,14 @@ test_that("validate_cross_domain truncates long subject lists", {
     USUBJID = sprintf("NPM-008-%03d", 1:15),
     PARAMCD = rep("BOR", 15),
     AVALC = rep("CR", 15),
-    stringsAsFactors = FALSE
+
   )
 
   adtte <- data.frame(
     USUBJID = character(0),
     PARAMCD = character(0),
     AVAL = numeric(0),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_cross_domain(
@@ -258,14 +258,14 @@ test_that("validate_cross_domain handles multiple BOR records per subject", {
     USUBJID = c("NPM-008-001", "NPM-008-001", "NPM-008-002"),
     PARAMCD = c("BOR", "BOR", "BOR"),
     AVALC = c("CR", "CR", "PR"),
-    stringsAsFactors = FALSE
+
   )
 
   adtte <- data.frame(
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     PARAMCD = c("DOR", "DOR"),
     AVAL = c(30, 45),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_cross_domain(

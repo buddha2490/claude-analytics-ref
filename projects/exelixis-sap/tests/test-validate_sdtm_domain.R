@@ -5,7 +5,7 @@ library(dplyr)
 library(stringr)
 
 # Source the function
-source("/Users/briancarter/Rdata/claude-analytics-ref/projects/exelixis-sap/R/validate_sdtm_domain.R")
+source("../R/validate_sdtm_domain.R")
 
 # --- Create mock DM reference dataset ---
 create_mock_dm <- function() {
@@ -15,7 +15,7 @@ create_mock_dm <- function() {
     USUBJID = c("NPM008-01-A0001", "NPM008-02-B0002", "NPM008-03-C0003"),
     RFSTDTC = c("2024-01-15", "2024-01-20", "2024-01-25"),
     RFENDTC = c("2024-06-15", "2024-07-20", "2024-08-25"),
-    stringsAsFactors = FALSE
+
   )
 }
 
@@ -28,7 +28,7 @@ create_valid_ae <- function() {
     AESEQ = c(1, 2, 1, 2, 1, 2),
     AESTDTC = c("2024-02-01", "2024-03-01", "2024-02-10", "2024-03-10", "2024-02-15", "2024-03-15"),
     AESEV = rep(c("MILD", "MODERATE"), 3),
-    stringsAsFactors = FALSE
+
   )
 }
 

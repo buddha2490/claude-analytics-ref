@@ -12,7 +12,7 @@ test_that("validate_derived_variables detects cardinality violations for one_per
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-002", "NPM-008-003"),
     PARAMCD = c("BOR", "BOR", "BOR", "BOR"),
     AVALC = c("PR", "CR", "CR", "SD"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_derived_variables(
@@ -34,7 +34,7 @@ test_that("validate_derived_variables passes with correct one_per_subject cardin
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-003"),
     PARAMCD = c("BOR", "BOR", "BOR"),
     AVALC = c("PR", "CR", "SD"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_derived_variables(
@@ -57,7 +57,7 @@ test_that("validate_derived_variables detects missing subjects for one_per_subje
                 "NPM-008-001", "NPM-008-002", "NPM-008-003"),
     PARAMCD = c("BOR", "BOR", "BOR", "OTHER", "OTHER", "OTHER", "OTHER"),
     AVALC = c("PR", "CR", "SD", "X", "Y", "Z", "W"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_derived_variables(
@@ -79,7 +79,7 @@ test_that("validate_derived_variables handles zero_or_one_per_subject", {
     USUBJID = c("NPM-008-001", "NPM-008-002", "NPM-008-002", "NPM-008-003"),
     PARAMCD = c("DOR", "DOR", "DOR", "OTHER"),
     AVAL = c(30, 45, 60, 10),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_derived_variables(
@@ -100,7 +100,7 @@ test_that("validate_derived_variables allows multiple_allowed", {
     USUBJID = c("NPM-008-001", "NPM-008-001", "NPM-008-002"),
     PARAMCD = c("VISIT", "VISIT", "VISIT"),
     AVAL = c(1, 2, 1),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_derived_variables(
@@ -120,7 +120,7 @@ test_that("validate_derived_variables warns when parameter not found", {
     USUBJID = c("NPM-008-001", "NPM-008-002"),
     PARAMCD = c("BOR", "BOR"),
     AVALC = c("PR", "CR"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_derived_variables(
@@ -142,7 +142,7 @@ test_that("validate_derived_variables detects multiple violation types", {
                 "NPM-008-004", "NPM-008-005"),
     PARAMCD = c("BOR", "BOR", "BOR", "OTHER", "BOR", "OTHER"),
     AVALC = c("PR", "CR", "SD", "X", "PD", "Y"),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_derived_variables(
@@ -164,7 +164,7 @@ test_that("validate_derived_variables errors on missing USUBJID", {
   data <- data.frame(
     SUBJECT_ID = c("NPM-008-001"),
     PARAMCD = c("BOR"),
-    stringsAsFactors = FALSE
+
   )
 
   expect_error(
@@ -177,7 +177,7 @@ test_that("validate_derived_variables errors on missing param_var", {
   data <- data.frame(
     USUBJID = c("NPM-008-001"),
     PARAM = c("BOR"),
-    stringsAsFactors = FALSE
+
   )
 
   expect_error(
@@ -190,7 +190,7 @@ test_that("validate_derived_variables errors on invalid cardinality", {
   data <- data.frame(
     USUBJID = c("NPM-008-001"),
     PARAMCD = c("BOR"),
-    stringsAsFactors = FALSE
+
   )
 
   expect_error(
@@ -206,7 +206,7 @@ test_that("validate_derived_variables handles large datasets efficiently", {
     USUBJID = rep(sprintf("NPM-008-%03d", 1:n_subjects), each = 2),
     PARAMCD = rep(c("BOR", "OTHER"), times = n_subjects),
     AVALC = rep(c("PR", "X"), times = n_subjects),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_derived_variables(
@@ -227,7 +227,7 @@ test_that("validate_derived_variables truncates violation list", {
     USUBJID = rep(sprintf("NPM-008-%03d", 1:15), each = 2),
     PARAMCD = rep("BOR", 30),
     AVALC = rep("PR", 30),
-    stringsAsFactors = FALSE
+
   )
 
   result <- validate_derived_variables(

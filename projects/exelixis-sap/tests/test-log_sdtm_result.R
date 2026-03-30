@@ -4,7 +4,7 @@ library(testthat)
 library(withr)
 
 # Source the function
-source("/Users/briancarter/Rdata/claude-analytics-ref/projects/exelixis-sap/R/log_sdtm_result.R")
+source("../R/log_sdtm_result.R")
 
 # --- Create mock validation result ---
 create_mock_validation_pass <- function() {
@@ -15,7 +15,7 @@ create_mock_validation_pass <- function() {
       description = c("Check 1", "Check 2", "Check 3"),
       result = c("PASS", "PASS", "PASS"),
       detail = c("", "", ""),
-      stringsAsFactors = FALSE
+
     ),
     summary = "AE validation: PASS (3 PASS, 0 FAIL, 0 WARNING)"
   )
@@ -29,7 +29,7 @@ create_mock_validation_fail <- function() {
       description = c("Check 1", "Check 2", "Check 3", "Check 4"),
       result = c("PASS", "FAIL", "PASS", "FAIL"),
       detail = c("", "Detail for failure 1", "", "Detail for failure 2"),
-      stringsAsFactors = FALSE
+
     ),
     summary = "AE validation: FAIL (2 PASS, 2 FAIL, 0 WARNING)"
   )
@@ -43,7 +43,7 @@ create_mock_validation_warning <- function() {
       description = c("Check 1", "Check 2", "Row count check"),
       result = c("PASS", "PASS", "WARNING"),
       detail = c("", "", "Actual: 150, Expected: [100, 120]"),
-      stringsAsFactors = FALSE
+
     ),
     summary = "AE validation: PASS (2 PASS, 0 FAIL, 1 WARNING)"
   )

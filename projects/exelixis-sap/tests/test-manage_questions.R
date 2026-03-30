@@ -5,7 +5,7 @@ library(yaml)
 library(tibble)
 
 # Load functions
-source("/Users/briancarter/Rdata/claude-analytics-ref/projects/exelixis-sap/R/manage_questions.R")
+source("../R/manage_questions.R")
 
 # --- Setup Test Environment -------------------------------------------------
 
