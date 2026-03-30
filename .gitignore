@@ -16,8 +16,11 @@ notes.md
 projects/*
 !projects/exelixis-sap/
 
-# But ignore generated data and tests within tracked projects
+# But ignore generated data within tracked projects
 projects/*/output-data/
-projects/*/tests/
 projects/*/.DS_Store
+
+# Ignore tests in other projects, but allow exelixis-sap/tests/
+projects/*/tests/
+!projects/exelixis-sap/tests/
 
