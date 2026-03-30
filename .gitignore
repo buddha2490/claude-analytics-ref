@@ -13,5 +13,13 @@ renv/sandbox/
 notes.md
 cohort/
 
+# projects folder - only track QA reviews
+projects/*
+!projects/QA reviews/
+
+# But ignore generated data within tracked projects
+projects/*/output-data/
+projects/*/.DS_Store
+
 
 
