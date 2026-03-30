@@ -14,5 +14,10 @@ notes.md
 QA reviews/
 cohort/
 
+# projects folder - ignore generated data and test files
+projects/*/output-data/
+projects/*/tests/
+projects/*/.DS_Store
+
 
 
